@@ -1,0 +1,21 @@
+# Surowe dane – setki MB, do odtworzenia skryptami z oryginalnych źródeł
+dane/
+
+# Pliki tymczasowe z pobierania ERA5
+*.part
+
+# Zrzuty bazy danych
+*.dump
+
+# Python
+__pycache__/
+*.pyc
+
+# Sekrety (hasła, tokeny), gdyby kiedyś pojawiły się w projekcie
+.env
+
+# Pliki Syncthinga
+.stfolder
+.stignore
+.stversions/
+*.sync-conflict-*
