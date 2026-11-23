@@ -1,7 +1,8 @@
 # Prognozowanie mgły w rejonie lotniska Kraków-Balice
 
 > Projekt w ramach przedmiotu **Podstawy fizyki środowiska**.
-> Cel: model uczenia maszynowego, który na podstawie danych meteorologicznych z ostatnich godzin podaje prawdopodobieństwo wystąpienia mgły na lotnisku Kraków-Balice (EPKK) w kolejnych 1–10 godzinach.
+> Cel: model uczenia maszynowego (drzewa decyzyjne), który na podstawie danych meteorologicznych z ostatnich godzin podaje prawdopodobieństwo wystąpienia mgły na lotnisku Kraków-Balice (EPKK) w kolejnych 1–5 godzinach.
+> Kluczowym celem projektu jest **porównanie dwóch sposobów prognozy wielohoryzontowej**: pięciu osobnych modeli (po jednym na każdy horyzont) i jednego modelu z pięcioma wyjściami (patrz rozdział 6).
 
 ---
 
@@ -27,14 +28,11 @@
 |---|---|---|---|
 | **IMGW-PIB – dane terminowe SYNOP** | Obserwacje ze stacji synoptycznej Kraków-Balice (kod 12566): widzialność, pogoda bieżąca, T, Td, RH, wiatr, chmury, ciśnienie, grunt, śnieg | godzinowa od 2001 r., wcześniej co 3 h | Podstawowe źródło. Archiwum od 1966 r. Opis pól w pliku `s_t_format.txt`. |
 | **METAR – Iowa Environmental Mesonet (IEM)** | Depesze lotniskowe EPKK: widzialność, chmury, zjawiska, T, Td, wiatr, ciśnienie | co 30 min | **Etap 2:** źródło godzinowych obserwacji sprzed 2001 r., kiedy IMGW ma krok 3 h. Zasięg archiwum dla EPKK do sprawdzenia. |
-| **ERA5 (Copernicus)** | Reanaliza: profil pionowy atmosfery, warstwa graniczna, wilgotność gleby, promieniowanie | godzinowa, siatka 0,25° | Dostępna od 1940 r. |
 | **GIOŚ – jakość powietrza** | **tylko PM10**, stacja Kraków, Al. Krasińskiego | godzinowa (`1g`); w części lat może być tylko dobowa (`24g`) | Archiwum od 2000 r. Czas w **CET** – przy imporcie przesunąć na UTC. |
 
 IMGW-PIB - dane terminowe SYNOP (Instytut Meteorologii i Gospodarki Wodnej – Państwowy Instytut Badawczy - dane terminowe surface synoptic observations)
 
 METAR - Iowa Environmental Mesonet (IEM) (Meteorological Aerodrome Report)
-
-ERA5 (Copernicus) - (to ECMWF Reanalysis v5, czyli piąta generacja reanalizy klimatycznej przygotowywanej przez ECMWF (European Centre for Medium-Range Weather Forecasts, Europejskie Centrum Prognoz Średnioterminowych))
 
 GIOŚ - jakość powietrza - (Główny Inspektorat Ochrony Środowiska)
 
@@ -49,7 +47,7 @@ GIOŚ - jakość powietrza - (Główny Inspektorat Ochrony Środowiska)
 - **Etap 2.** Dopiero w kolejnych podejściach dokładamy lata sprzed 2001. IMGW ma wtedy obserwacje tylko co 3 h, więc żeby zachować krok godzinowy, bierzemy obserwacje z METAR (IEM) zamiast interpolować dane IMGW.
   - **Warunek:** archiwum IEM dla EPKK musi sięgać odpowiednio daleko wstecz. Trzeba to sprawdzić przed rozpoczęciem etapu 2.
   - **Plan awaryjny:** jeśli METAR-ów sprzed 2001 r. nie ma, stosujemy model z krokiem 3 h na pełnym okresie, bez interpolacji.
-- ERA5 i GIOŚ dokładamy jako **osobne eksperymenty** i mierzymy, o ile poprawiają wynik względem modelu na samym IMGW.
+- GIOŚ dokładamy jako **osobny eksperyment** i mierzymy, o ile poprawia wynik względem modelu na samym IMGW.
 
 ---
 
@@ -57,8 +55,7 @@ GIOŚ - jakość powietrza - (Główny Inspektorat Ochrony Środowiska)
 
 Dane stacyjne bierzemy **tylko z lotniska w Balicach**. Pozostałe stacje synoptyczne są dość rozrzucone po mapie, a różnice w ukształtowaniu terenu (lotnisko leży w obniżeniu, w pobliżu dolin Wisły i Rudawy) sprawiają, że przenoszenie ich wartości na Balice ma niewielki sens.
 
-> **Doprecyzowanie:** nie wszystkie źródła są punktowe.
-> - **ERA5** to siatka o oczku ok. 0,25° (ok. 28 × 18 km w naszej szerokości geograficznej). Bierzemy **punkt siatki najbliższy Balicom**, pamiętając, że reprezentuje on średnią z obszaru, a rzeźba terenu jest w nim wygładzona.
+> **Doprecyzowanie:** wyjątkiem są dane o jakości powietrza.
 > - **GIOŚ** nie ma stacji na lotnisku. Bierzemy **tylko PM10 ze stacji Kraków, Al. Krasińskiego**, około 13 km od Balic.
 >   - **Dlaczego ta stacja:** ma najdłuższą ciągłą serię (działa od początku lat 2000.). Bliższa stacja w Zabierzowie (`MpZabieWapie`) powstała później i nie pokrywa etapu 1 (2001–2025).
 >   - **Ograniczenie:** to **stacja komunikacyjna** przy ruchliwej ulicy, a nie stacja tła. Bezwzględne stężenia są wyższe niż przy lotnisku, a cykl dobowy częściowo wynika z ruchu ulicznego. Zakładamy, że epizody smogowe przy inwersji mają w Krakowie charakter regionalny, więc **zmienność w czasie** jest podobna jak przy Balicach.
@@ -82,27 +79,59 @@ Wszystkie dane wczytujemy do bazy SQL (SQLite) i porządkujemy według daty i go
 > - **Miesiąc zapisujemy liczbą**, nie nazwą (`11`, nie `listopad`).
 > - **Zachmurzenie** w SYNOP jest w oktantach (0–8), nie w procentach.
 > - **Wysokość Słońca** nie pochodzi z żadnego źródła, wyliczamy ją z daty, godziny i współrzędnych lotniska (np. biblioteką `pvlib` lub `astral`).
-> - Wygodny układ bazy: **osobna tabela dla każdego źródła** (`synop`, `metar`, `era5`, `gios`) z kluczem czasowym, a na nich **widok** (`VIEW`) łączący wszystko w jedną szeroką tabelę cech. Dzięki temu łatwo dodać nowe źródło bez przebudowy całości.
+> - Wygodny układ bazy: **osobna tabela dla każdego źródła** (`synop`, `metar`, `gios`) z kluczem czasowym, a na nich **widok** (`VIEW`) łączący wszystko w jedną szeroką tabelę cech. Dzięki temu łatwo dodać nowe źródło bez przebudowy całości.
 > - SQLite obsługuje funkcje okna (`LAG`, `AVG(...) OVER`), więc trendy i opóźnienia można liczyć bezpośrednio w SQL.
 
 ---
 
 ## 4. Okno wejściowe modelu
 
-Do treningu bierzemy **48 kolejnych godzin** wraz ze wszystkimi parametrami dla tych godzin. Jedna próbka to więc tensor o kształcie `(48, liczba_cech)`, a cały zbiór: `(liczba_próbek, 48, liczba_cech)`.
+Do treningu bierzemy **48 kolejnych godzin** wraz ze wszystkimi parametrami dla tych godzin.
+
+Drzewa decyzyjne nie przyjmują sekwencji, tylko płaski wektor cech. Okno 48 h zamieniamy więc na jeden wiersz tabeli: wartości parametrów z wybranych godzin (np. *t*, *t−1*, *t−3*, *t−6*, …), trendy (parametr 22) i proste agregaty z okna (np. minimum, maksimum, średnia). Cały zbiór to macierz o kształcie `(liczba_próbek, liczba_cech)`.
 
 To także pole do eksperymentów: można sprawdzać różne długości okna (np. 24 h, 30 h, 32 h) i porównywać, jak model radzi sobie w zależności od liczby godzin podanych na wejściu.
 
 > **Uwagi:**
-> - Okna przesuwamy co godzinę, więc sąsiednie próbki prawie się pokrywają. Przy podziale na zbiory treningowy, walidacyjny i testowy trzeba zostawić **przerwę (≥ 58 h = 48 h wejścia + 10 h horyzontu)** na granicach, żeby żadne okno nie „zaglądało” do innego zbioru.
-> - Trzeba zdecydować, co robić z oknami zawierającymi braki danych: odrzucać, uzupełniać (np. z ERA5) czy oznaczać flagą (parametr 37).
+> - Okna przesuwamy co godzinę, więc sąsiednie próbki prawie się pokrywają. Przy podziale na zbiory treningowy, walidacyjny i testowy trzeba zostawić **przerwę (≥ 53 h = 48 h wejścia + 5 h horyzontu)** na granicach, żeby żadne okno nie „zaglądało” do innego zbioru.
+> - Trzeba zdecydować, co robić z oknami zawierającymi braki danych: odrzucać, uzupełniać czy oznaczać flagą (parametr 27). Gradient boosting (XGBoost, LightGBM) potrafi sam obsłużyć brakujące wartości, więc nie każdą lukę trzeba wypełniać.
 
 ---
 
 ## 5. Parametry
 
 Priorytet: ★★★ niezbędne · ★★ wyraźnie pomaga · ★ opcjonalne lub do eksperymentów.
-W kolumnie „Pole” podane są nazwy z plików IMGW SYNOP, METAR (IEM) lub ERA5.
+W kolumnie „Pole” podane są nazwy z plików IMGW SYNOP lub METAR (IEM).
+
+### Zestaw startowy
+
+Na początek skupiamy się na **najważniejszych parametrach z IMGW**. Pierwsze modele trenujemy tylko na nich, na danych z lat **2001–2025** (podział na zbiory treningowy, walidacyjny i testowy w pułapce 6):
+
+| Lp. | Parametr | Pole IMGW |
+|---|---|---|
+| 1 | Rok | `ROK` |
+| 2 | Miesiąc | `MC` |
+| 3 | Dzień | `DZ` |
+| 4 | Godzina (UTC) | `GG` |
+| 5 | Widzialność [kod] | `WID` |
+| 6 | Pogoda bieżąca | `POGB` |
+| 7 | Temperatura powietrza | `TEMP` |
+| 8 | Temperatura punktu rosy | `TPTR` |
+| 9 | Wilgotność względna | `WLGW` |
+| 10 | Prędkość wiatru | `FWR` |
+| 11 | Kierunek wiatru | `KRWR` |
+| 12 | Zachmurzenie ogólne | `NOG` |
+| 13 | Zachmurzenie niskie | `CLCM` |
+| 14 | Wysokość podstawy chmur | `HPON` |
+| 15 | Ciśnienie na poziomie morza | `PPPM` |
+| 16 | Opad za 6 godzin | `WO6G` |
+| 17 | Temperatura gruntu na głębokości 5 cm | `TG05` |
+| 18 | Usłonecznienie | `USLN` |
+| 19 | Występowanie rosy | `ROSW` |
+
+> **Dlaczego `WID`, a nie `WIDA`:** w plikach IMGW widzialność w metrach (`WIDA` – automat, `WIDO` – obserwator) jest dopiero od 2011 r., a `WIDA` brakuje dodatkowo w 2024 r. i w części 2025 r. Kod `WID` jest wypełniony we wszystkich latach 2001–2025, więc z niego budujemy etykietę i wejście. Przedziały kodu (np. które kody oznaczają < 1000 m) warto sprawdzić, porównując `WID` z `WIDO` w latach 2011–2025.
+
+Dopiero w przyszłości można myśleć o rozbudowie modeli o kolejne parametry: pozostałe pola z tabeli 5.1 (np. tendencja ciśnienia, rodzaj opadu, temperatura minimalna przy gruncie, stan gruntu, pokrywa śnieżna), PM10 z GIOŚ (5.2) i dane METAR (etap 2).
 
 ### 5.1 Stacja Kraków-Balice (IMGW SYNOP 12566 + METAR EPKK)
 
@@ -110,13 +139,13 @@ https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/dane_meteorologic
 
 | Nr | Parametr | Pole | Prio | Znaczenie dla mgły |
 |---|---|---|---|---|
-| 1 | Widzialność | `WIDO`/`WIDA`, METAR `vsby` | ★★★ | Z niej budujemy etykietę (< 1000 m). Jako wejście daje persystencję i trend: spadająca widzialność (zamglenie) często poprzedza mgłę. Najsilniejszy predyktor dla krótkich horyzontów. |
+| 1 | Widzialność | `WID` (kod), `WIDO`/`WIDA` (od 2011), METAR `vsby` | ★★★ | Z niej budujemy etykietę (< 1000 m). Jako wejście daje persystencję i trend: spadająca widzialność (zamglenie) często poprzedza mgłę. Najsilniejszy predyktor dla krótkich horyzontów. |
 | 2 | Pogoda bieżąca | `POGB`, METAR `wxcodes` | ★★★ | Odróżnia mgłę (kody 40–49) od zamglenia (10) oraz zmętnienia lub dymu (04–05). Potrzebna do etykiety i jako sygnał, że mgła „już się zaczyna”. |
 | 3 | Temperatura powietrza | `TEMP` | ★★★ | Mgła radiacyjna powstaje, gdy powietrze ochłodzi się do punktu rosy. Tempo nocnego spadku temperatury mówi, jak szybko się do niego zbliża. |
 | 4 | Temperatura punktu rosy | `TPTR` | ★★★ | Miara zawartości pary wodnej. Razem z temperaturą daje deficyt T − Td, kluczową miarę odległości od nasycenia. |
 | 5 | Wilgotność względna | `WLGW` | ★★★ | Bezpośrednia miara nasycenia. Mgła wymaga RH bliskiej 100%. Przydaje się też do odróżnienia mgły od smogu. |
 | 6 | Prędkość wiatru | `FWR` | ★★★ | Słaby wiatr (~0,5–3 m/s) sprzyja mgle radiacyjnej. Przy ciszy powstaje raczej rosa, a silniejszy wiatr miesza warstwę przyziemną i nie dopuszcza do nasycenia. |
-| 7 | Kierunek wiatru | `KRWR` | ★★★ | Pokazuje, skąd napływa powietrze: wilgotne z doliny Wisły czy Rudawy (adwekcja), czy suche. Kodujemy jako składowe u/v (parametr 34), nie surowe stopnie. |
+| 7 | Kierunek wiatru | `KRWR` | ★★★ | Pokazuje, skąd napływa powietrze: wilgotne z doliny Wisły czy Rudawy (adwekcja), czy suche. Kodujemy jako składowe u/v (parametr 26), nie surowe stopnie. |
 | 8 | Zachmurzenie ogólne | `NOG` | ★★★ | Czyste niebo w nocy oznacza silne wypromieniowanie długofalowe i szybkie wychładzanie gruntu. Chmury działają jak koc i blokują mgłę radiacyjną. |
 | 9 | Zachmurzenie niskie | `CLCM` | ★★ | Niskie chmury najsilniej hamują wychładzanie. Ich obecność to też sygnał wilgotnej warstwy przy ziemi. |
 | 10 | Wysokość podstawy chmur | `HPON`/`HPOD`, METAR `skyl1` | ★★ | Obniżający się stratus to osobny mechanizm powstawania mgły (*cloud base lowering*). Ważne przy mgłach niebędących radiacyjnymi. |
@@ -130,42 +159,29 @@ https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/dane_meteorologic
 | 18 | Usłonecznienie | `USLN` | ★ | Słoneczny dzień poprzedzający noc oznacza parowanie i wilgoć przy gruncie wieczorem. W dzień słońce rozprasza mgłę. |
 | 19 | Występowanie rosy | `ROSW` | ★ | Rosa oznacza, że przy gruncie osiągnięto nasycenie, co jest blisko progu mgły. |
 
-### 5.2 ERA5 (reanaliza Copernicus, godzinowa)
-
-| Nr | Parametr | Zmienna | Prio | Znaczenie dla mgły |
-|---|---|---|---|---|
-| 20 | Temperatura na 925 i 850 hPa | `t` | ★★★ | W połączeniu z temperaturą przy ziemi daje siłę inwersji. Silna inwersja zatrzymuje wilgoć i chłód przy gruncie, co jest głównym warunkiem mgieł zimowych. |
-| 21 | Wysokość warstwy granicznej | `blh` | ★★★ | Płytka warstwa graniczna to słabe mieszanie, więc wilgoć i ochłodzenie koncentrują się przy ziemi. |
-| 22 | Wiatr na 925 hPa | `u`, `v` | ★★ | Silny wiatr tuż nad warstwą przyziemną może „zdrapać” mgłę przez turbulencję, nawet gdy przy ziemi jest cisza. |
-| 23 | Wilgotność właściwa na 925/850 hPa | `q` | ★★ | Suche powietrze nad warstwą przyziemną sprzyja wypromieniowaniu, a gruba wilgotna warstwa sprzyja raczej niskim chmurom niż mgle. |
-| 24 | Wilgotność gleby (warstwa wierzchnia) | `swvl1` | ★★ | Źródło pary wodnej z podłoża. Ciągła seria, w przeciwieństwie do opisowego „stanu gruntu”. |
-| 25 | Promieniowanie długofalowe netto | `str` | ★★ | Bezpośrednia miara wypromieniowania energii przez powierzchnię nocą, czyli tempa wychładzania radiacyjnego. |
-| 26 | Zachmurzenie niskie / ogólne | `lcc`, `tcc` | ★ | Uzupełnienie braków w danych stacyjnych i wartość ciągła zamiast oktantów. |
-| 27 | T i Td na 2 m, ciśnienie | `t2m`, `d2m`, `msl` | ★ | Wypełnianie luk w danych stacyjnych. |
-
-### 5.3 Jakość powietrza (GIOŚ)
+### 5.2 Jakość powietrza (GIOŚ)
 
 | Nr | Parametr | Prio | Znaczenie dla mgły |
 |---|---|---|---|
-| 28 | PM10 (Kraków, Al. Krasińskiego) | ★ | Aerozol dostarcza jąder kondensacji: wpływa na gęstość mgły i pozwala analizować mgłę vs smog. Jest też wskaźnikiem stagnacji powietrza pod inwersją. Tylko do osobnego eksperymentu. Dane `24g` nie są interpolowane do godzin – co najwyżej jako cecha „średnie PM10 z poprzedniej doby” (nie z bieżącej, bo zawiera ona godziny z przyszłości). |
+| 20 | PM10 (Kraków, Al. Krasińskiego) | ★ | Aerozol dostarcza jąder kondensacji: wpływa na gęstość mgły i pozwala analizować mgłę vs smog. Jest też wskaźnikiem stagnacji powietrza pod inwersją. Tylko do osobnego eksperymentu. Dane `24g` nie są interpolowane do godzin – co najwyżej jako cecha „średnie PM10 z poprzedniej doby” (nie z bieżącej, bo zawiera ona godziny z przyszłości). |
 
 > **Dlaczego tylko PM10:** dla uproszczenia zbioru danych bierzemy jeden wskaźnik z najdłuższą serią. PM2.5 (fizycznie lepsza miara jąder kondensacji) i SO₂ (prekursor siarczanów, ważny dla długoterminowego trendu mgieł) to możliwe rozszerzenia na później. Pozostałe zanieczyszczenia (CO, benzen, NO₂, O₃, metale) pomijamy, bo wnoszą głównie tę samą informację o stagnacji powietrza co PM10 i dane meteorologiczne.
 >
 > **Pułapka pomiarowa:** przy bardzo dużej wilgotności i mgle odczyty automatycznych mierników pyłu mogą być zaburzone. Jeśli PM10 okaże się podejrzanie silnym predyktorem, trzeba sprawdzić, czy model nie uczy się artefaktu pomiarowego.
 
-### 5.4 Cechy wyliczane (niczego nie pobieramy, ale są bardzo ważne)
+### 5.3 Cechy wyliczane (niczego nie pobieramy, ale są bardzo ważne)
 
 | Nr | Cecha | Prio | Znaczenie dla mgły |
 |---|---|---|---|
-| 29 | Deficyt punktu rosy T − Td | ★★★ | Ile stopni brakuje do nasycenia. Zwykle najważniejsza pojedyncza cecha. |
-| 30 | Trendy: ΔT, ΔTd, ΔRH, Δwidzialności za 1, 3 i 6 h | ★★★ | Model musi wiedzieć, czy powietrze zbliża się do nasycenia, a nie tylko jaki jest stan obecny. |
-| 31 | Godzina (sin/cos) i dzień roku (sin/cos) | ★★★ | Silny cykl dobowy (maksimum nad ranem) i roczny (jesień–zima). |
-| 32 | Wysokość Słońca w chwili *t* i w godzinie docelowej *t+h* | ★★★ | Po wschodzie Słońca mgła się rozprasza. Bez tej informacji model nie wie, że za 6 h będzie już dzień. |
-| 33 | Długość nocy / godziny od zachodu Słońca | ★★ | Im dłużej trwa noc, tym więcej czasu na wychładzanie. Stąd długie jesienne i zimowe noce sprzyjają mgle. |
-| 34 | Składowe wiatru u, v | ★★ | Kierunek jako wektor zamiast stopni, bo 359° i 1° to prawie ten sam kierunek. |
-| 35 | Siła inwersji (T₉₂₅ − T₂ₘ) | ★★ | Wyliczana z ERA5 i stacji. Bezpośrednia miara stabilności warstwy przyziemnej. |
-| 36 | Gradient ciśnienia | ★ | Przybliżony wiatr synoptyczny. Przy danych stacyjnych tylko z Balic liczymy go z pola ciśnienia ERA5 (`msl`) wokół lotniska, a nie między stacjami. |
-| 37 | Flagi braków danych | ★ | Informacja dla modelu, że wartość była uzupełniana, plus kontrola jakości. |
+| 21 | Deficyt punktu rosy T − Td | ★★★ | Ile stopni brakuje do nasycenia. Zwykle najważniejsza pojedyncza cecha. |
+| 22 | Trendy: ΔT, ΔTd, ΔRH, Δwidzialności za 1, 3 i 6 h | ★★★ | Model musi wiedzieć, czy powietrze zbliża się do nasycenia, a nie tylko jaki jest stan obecny. |
+| 23 | Godzina (sin/cos) i dzień roku (sin/cos) | ★★★ | Silny cykl dobowy (maksimum nad ranem) i roczny (jesień–zima). |
+| 24 | Wysokość Słońca w chwili *t* i w godzinie docelowej *t+h* | ★★★ | Po wschodzie Słońca mgła się rozprasza. Bez tej informacji model nie wie, że za 5 h będzie już dzień. |
+| 25 | Długość nocy / godziny od zachodu Słońca | ★★ | Im dłużej trwa noc, tym więcej czasu na wychładzanie. Stąd długie jesienne i zimowe noce sprzyjają mgle. |
+| 26 | Składowe wiatru u, v | ★★ | Kierunek jako wektor zamiast stopni, bo 359° i 1° to prawie ten sam kierunek. |
+| 27 | Flagi braków danych | ★ | Informacja dla modelu, że wartość była uzupełniana, plus kontrola jakości. |
+
+Cechy wyliczane powstają z parametrów zestawu startowego, więc nie wymagają pobierania dodatkowych danych.
 
 > **Do rozważenia:** typ cyrkulacji atmosferycznej według kalendarza Niedźwiedzia. Według pracy Skrzyńskiej (2019) mgła w Balicach najczęściej występuje w sytuacjach bezadwekcyjnych: w centrum wyżu i klinie antycyklonalnym. To gotowa, fizycznie uzasadniona cecha synoptyczna.
 
@@ -175,39 +191,54 @@ https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/dane_meteorologic
 
 Dane z IMGW z lat 2001–2025 są notowane co 1 godzinę, a z lat wcześniejszych co 3 h. Dlatego pierwsze treningi wykonujemy wyłącznie na danych godzinowych z lat 2001–2025 (etap 1). Lata sprzed 2001 dokładamy w kolejnych podejściach z godzinowych depesz METAR (etap 2, patrz rozdział 1 – *Etapy zbierania danych*). Porównanie modeli z etapu 1 i 2 pokaże, czy dłuższa seria danych poprawia prognozę.
 
-Tworzymy łącznie **11 modeli** i porównujemy dwa podejścia do prognozy wielohoryzontowej.
+### Metoda: drzewa decyzyjne, nie sieć neuronowa
 
-### Podejście A: jeden model z 10 wyjściami
+Nie budujemy sieci neuronowej. Używamy **drzew decyzyjnych w wersji gradient boosting** (np. XGBoost, LightGBM), tak jak grupa z Uniwersytetu w Innsbrucku w projekcie dla lotniska w Wiedniu (Dietz i in., 2018, patrz rozdział 11). Drzewa dobrze radzą sobie z danymi w postaci tabeli, z mieszanką wartości ciągłych i kodów (np. pogoda bieżąca) oraz z brakami danych. Nie wymagają skalowania cech i łatwo z nich odczytać, które cechy są najważniejsze.
 
-Jeden duży model przyjmuje na wejściu parametry z ostatnich 48 godzin, a na wyjściu ma **10 niezależnych wyjść**. Każde podaje prawdopodobieństwo mgły w danej godzinie w przód, np.:
+### Dwa sposoby prognozy na 1–5 h
 
-| Horyzont | +1 h | +2 h | … | +10 h |
-|---|---|---|---|---|
-| Szansa na mgłę | 60% | 55% | … | 2% |
+Tworzymy łącznie **6 modeli**. Najbardziej zależy nam na **porównaniu tych dwóch sposobów** prognozy wielohoryzontowej.
 
-Technicznie: każde wyjście ma **osobną sigmoidę** (nie wspólny softmax, bo prawdopodobieństwa dla różnych godzin nie muszą sumować się do 100%), a funkcja straty to suma 10 binarnych entropii krzyżowych.
+#### Podejście A: 5 osobnych modeli (modele 1–5)
 
-Do modelu podajemy też **aktualną godzinę i wysokość Słońca, również dla godzin docelowych** (parametry 31–32). Dzięki temu model może się nauczyć, że po wschodzie Słońca mgła zanika: promieniowanie słoneczne nagrzewa powierzchnię gruntu, ta ogrzewa powietrze od dołu, temperatura rośnie powyżej punktu rosy i krople parują, a konwekcja rozbija inwersję i miesza warstwę przyziemną.
-
-### Podejście B: 10 osobnych modeli
-
-10 niezależnych modeli, każdy dla innego czasu wyprzedzenia (tak robiła grupa z Uniwersytetu w Innsbrucku dla lotniska w Wiedniu):
+5 niezależnych modeli, każdy dla innego czasu wyprzedzenia (tak robiła grupa z Innsbrucka dla lotniska w Wiedniu):
 
 - model 1: szansa na mgłę za 1 h,
 - model 2: szansa na mgłę za 2 h,
-- …
-- model 10: szansa na mgłę za 10 h.
+- model 3: szansa na mgłę za 3 h,
+- model 4: szansa na mgłę za 4 h,
+- model 5: szansa na mgłę za 5 h.
 
 Każdy model ma **jedno wyjście** z prawdopodobieństwem mgły (drugie wyjście 100% − p nie niesie dodatkowej informacji).
-https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/dane_meteorologiczne/terminowe/synop/1996_2000/
+
+#### Podejście B: jeden model z 5 wyjściami (model 6)
+
+Jeden model przyjmuje na wejściu parametry z ostatnich 48 godzin, a na wyjściu ma **5 wyjść**. Każde podaje prawdopodobieństwo mgły w danej godzinie w przód, np.:
+
+| Horyzont | +1 h | +2 h | +3 h | +4 h | +5 h |
+|---|---|---|---|---|---|
+| Szansa na mgłę | 60% | 55% | 40% | 25% | 10% |
+
+Każde wyjście ma **osobną funkcję logistyczną** (nie wspólny softmax, bo prawdopodobieństwa dla różnych godzin nie muszą sumować się do 100%), a funkcja straty to suma 5 binarnych entropii krzyżowych (*log loss*).
+
+Technicznie drzewa w podstawowej wersji mają jedno wyjście. Model z 5 wyjściami można zbudować tak:
+- **XGBoost (od wersji 2.0) z `multi_strategy="multi_output_tree"`**: każde drzewo jest wspólne dla wszystkich 5 horyzontów, a w liściach zapisane jest 5 wartości naraz,
+- albo **las losowy / pojedyncze drzewo ze scikit-learn**, które natywnie obsługują wiele wyjść.
+
+> **Uwaga:** `MultiOutputClassifier` ze scikit-learn tylko trenuje osobny model dla każdego wyjścia. To w praktyce podejście A, więc nie nadaje się do porównania.
+
+### Wspólne dla obu podejść
+
+Do modeli podajemy też **aktualną godzinę i wysokość Słońca, również dla godzin docelowych** (parametry 23–24). Dzięki temu model może się nauczyć, że po wschodzie Słońca mgła zanika: promieniowanie słoneczne nagrzewa powierzchnię gruntu, ta ogrzewa powietrze od dołu, temperatura rośnie powyżej punktu rosy i krople parują, a konwekcja rozbija inwersję i miesza warstwę przyziemną.
+
 ### Porównanie podejść
 
-| | A: jeden model, 10 wyjść | B: 10 osobnych modeli |
+| | A: 5 osobnych modeli | B: jeden model, 5 wyjść |
 |---|---|---|
-| Zalety | wspólna reprezentacja dla wszystkich horyzontów, gładsze i spójniejsze prognozy, jeden model do utrzymania | każdy horyzont może mieć własne cechy i hiperparametry, naturalne dla gradient boostingu (LightGBM, XGBoost) |
-| Wady | jedna architektura musi pasować do wszystkich horyzontów | prognozy dla kolejnych godzin mogą „skakać”, bo modele nic o sobie nie wiedzą |
+| Zalety | każdy horyzont może mieć własne cechy i hiperparametry, standardowe zastosowanie gradient boostingu (LightGBM, XGBoost) | wspólna struktura drzew dla wszystkich horyzontów, gładsze i spójniejsze prognozy, jeden model do utrzymania |
+| Wady | prognozy dla kolejnych godzin mogą „skakać”, bo modele nic o sobie nie wiedzą | jeden podział w drzewie musi pasować do wszystkich horyzontów; drzewa wielowyjściowe w XGBoost są nowsze i mniej sprawdzone |
 
-To dobra okazja, żeby porównać oba podejścia, bo każde ma wady i zalety, na które trzeba uważać.
+Każde z podejść ma wady i zalety, na które trzeba uważać, i właśnie to porównanie jest głównym wynikiem projektu.
 
 > **Punkt odniesienia:** oba podejścia porównujemy zawsze z dwoma prostymi *baseline'ami*: **persystencją** („będzie tak jak teraz”) i **klimatologią** (częstość mgły dla danej godziny i miesiąca). Patrz pułapka 4.
 
@@ -215,7 +246,7 @@ To dobra okazja, żeby porównać oba podejścia, bo każde ma wady i zalety, na
 
 ## 7. Ocena modeli
 
-Dobrym sposobem weryfikacji jest sprawdzenie, jak model radzi sobie na różnych horyzontach. Przewidzenie mgły za 1 h jest łatwe, jeśli mgła jest już teraz. Przy prognozie na 10 h w przód skuteczność wyraźnie spadnie i to jest oczekiwane. Ciekawe jest, **jak szybko** spada dla każdego z modeli i o ile lepiej od baseline'ów wypada na dłuższych horyzontach.
+Dobrym sposobem weryfikacji jest sprawdzenie, jak model radzi sobie na różnych horyzontach. Przewidzenie mgły za 1 h jest łatwe, jeśli mgła jest już teraz. Przy prognozie na 5 h w przód skuteczność wyraźnie spadnie i to jest oczekiwane. Ciekawe jest, **jak szybko** spada dla każdego z modeli i o ile lepiej od baseline'ów wypada na dłuższych horyzontach.
 
 Wyniki można porównać z prognozami synoptyków, czyli prognozami lotniskowymi **TAF** dla EPKK.
 
@@ -238,9 +269,9 @@ Model prognozuje mgłę w okresie **od początku września do końca marca**. W 
 ## 9. Plan budowy prognozy
 
 1. **Wczytanie danych.** Skrypt w Pythonie pobiera wszystkie dane i wczytuje je do bazy SQLite, układając je w sensowny sposób (osobne tabele dla źródeł, czas w UTC, kontrola braków i statusów pomiaru).
-2. **Przygotowanie danych do treningu.** Skrypt wybiera dane z bazy, liczy cechy wyliczane i etykiety, tnie dane na okna 48 h, dzieli je na zbiory treningowy, walidacyjny i testowy, zamienia na tensory i przygotowuje do podania modelom.
-3. **Stworzenie 11 modeli.** Na początku nie zajmujemy się dokładnością, tylko tym, żeby cokolwiek zwracały. Poprawiamy je na końcu. Równolegle liczymy oba baseline'y.
-4. **Interfejs do analizy wyników.** Narzędzie analizujące wyniki (metryki dla każdego horyzontu, diagramy wiarygodności, porównanie modeli), które ułatwi poprawianie parametrów modeli i innych ustawień.
+2. **Przygotowanie danych do treningu.** Skrypt wybiera z bazy parametry zestawu startowego, liczy cechy wyliczane i etykiety, zamienia okna 48 h na wiersze cech, dzieli je na zbiory treningowy, walidacyjny i testowy i przygotowuje do podania modelom.
+3. **Stworzenie 6 modeli.** Na początku nie zajmujemy się dokładnością, tylko tym, żeby cokolwiek zwracały. Poprawiamy je na końcu. Równolegle liczymy oba baseline'y.
+4. **Interfejs do analizy wyników.** Narzędzie analizujące wyniki (metryki dla każdego horyzontu, diagramy wiarygodności, porównanie obu podejść), które ułatwi poprawianie parametrów modeli i innych ustawień.
 
 ---
 
@@ -252,7 +283,7 @@ Model prognozuje mgłę w okresie **od początku września do końca marca**. W 
 
    Progu stężenia PM nie używamy: w Krakowie mgła i smog często występują jednocześnie (ta sama inwersja zatrzymuje wilgoć i pył), a pomiary PM z lat 80. praktycznie nie istnieją.
 2. **Powstawanie a utrzymywanie się mgły.** Jeśli mgła jest teraz, model łatwo przewidzi, że będzie za godzinę, i metryki wyglądają świetnie. Ciekawe jest powstawanie mgły, więc osobno oceniamy przypadki, w których w chwili *t* mgły nie ma.
-3. **Niezbalansowane klasy.** Mgła to kilka procent godzin. Używamy PR-AUC, Brier score i diagramów wiarygodności (skoro chcemy prawdopodobieństwa, kalibracja jest kluczowa), a nie samej trafności (*accuracy*). Jeśli w funkcji straty damy wagi klas, kalibracja się psuje i trzeba ją potem poprawić (np. regresją izotoniczną).
+3. **Niezbalansowane klasy.** Mgła to kilka procent godzin. Używamy PR-AUC, Brier score i diagramów wiarygodności (skoro chcemy prawdopodobieństwa, kalibracja jest kluczowa), a nie samej trafności (*accuracy*). Jeśli w funkcji straty damy wagi klas (np. `scale_pos_weight` w XGBoost), kalibracja się psuje i trzeba ją potem poprawić (np. regresją izotoniczną).
 4. **Baseline'y.** Zawsze porównujemy z persystencją i klimatologią (częstość mgły dla danej godziny i miesiąca). Wynik bez tego porównania nic nie znaczy.
 5. **Niestacjonarność danych 1980–2024.** Częstość mgły w Europie wyraźnie spadła od lat 80., m.in. przez spadek zanieczyszczenia aerozolem. Do tego dochodzi zmiana z widzialności określanej przez obserwatora na pomiar automatyczny, co widać w osobnych polach `WIDO` i `WIDA`.
    W etapie 2 dochodzi zmiana źródła: przed 2001 r. dane stacyjne pochodzą z METAR, a od 2001 r. z IMGW. Trzeba sprawdzić, czy na granicy źródeł nie ma sztucznego skoku, np. w częstości mgły. Najprościej porównać METAR i IMGW w latach, w których dostępne są oba źródła.
@@ -277,7 +308,7 @@ Model prognozuje mgłę w okresie **od początku września do końca marca**. W 
 1. **Skrzyńska M. (2019).** *Prace Geograficzne*, z. 158, s. 27–44 (tytuł do uzupełnienia ze strony artykułu). DOI: [10.4467/20833113PG.19.014.10918](https://doi.org/10.4467/20833113PG.19.014.10918)
    Najbardziej konkretne źródło o mgłach w rejonie Balic. Analizuje dni z mgłą w latach 1981–2010 na trzech lotniskach: Kraków-Balice, Katowice-Muchowiec i Rzeszów-Jasionka, wraz z typami cyrkulacji. Najwięcej dni z mgłą odnotowano w Balicach.
 2. **Dietz S.J., Kneringer P., Mayr G.J., Zeileis A. (2018).** Low visibility forecasts for different flight planning horizons using tree-based boosting models. *Working Papers in Economics and Statistics*, Universität Innsbruck, 2018-11.
-   Osobne modele dla każdego horyzontu (lotnisko w Wiedniu). Obserwacje dominują do ok. 2 h wyprzedzenia, potem coraz ważniejsze są prognozy modeli numerycznych.
+   Wzór dla naszego projektu: drzewa decyzyjne z boostingiem i osobne modele dla każdego horyzontu (lotnisko w Wiedniu). Obserwacje dominują do ok. 2 h wyprzedzenia, potem coraz ważniejsze są prognozy modeli numerycznych.
 3. **Kneringer P., Dietz S.J., Mayr G.J., Zeileis A. (2017).** Probabilistic nowcasting of low-visibility procedure states at Vienna International Airport during cold season. *Working Papers in Economics and Statistics*, Universität Innsbruck, 2017-21.
 4. **Vautard R., Yiou P., van Oldenborgh G.J. (2009).** Decline of fog, mist and haze in Europe over the past 30 years. *Nature Geoscience*, 2, 115–119.
    Źródło do pułapki 5 (spadek częstości mgły w Europie).
@@ -286,6 +317,5 @@ Model prognozuje mgłę w okresie **od początku września do końca marca**. W 
 
 - IMGW-PIB, dane terminowe SYNOP: <https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/dane_meteorologiczne/terminowe/synop/>
 - Iowa Environmental Mesonet, archiwum METAR: <https://mesonet.agron.iastate.edu/request/download.phtml>
-- ERA5, Copernicus Climate Data Store: <https://cds.climate.copernicus.eu/>
 - GIOŚ, bank danych pomiarowych jakości powietrza: <https://powietrze.gios.gov.pl/>
   - archiwum (roczne paczki 2000–2025 i metadane stacji): <https://powietrze.gios.gov.pl/pjp/archives>

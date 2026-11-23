@@ -1,8 +1,9 @@
-CREATE TABLE IMGW(
+CREATE TABLE IF NOT EXISTS IMGW(
     ROK INT, --Rok obserwacji IMGW
     MC INT, --Miesiąc obserwacji (1–12) IMGW
     DZ INT, --Dzień miesiąca IMGW
     GG INT, --Godzina terminu obserwacji (0–23) IMGW
+    WID INT, --Widzialność [kod 0-9], 0-3 = mgła (<1000 m) IMGW
     WIDA FLOAT, --Widzialność (automat) [m] IMGW
     WIDO FLOAT, --Widzialność (operator) [m] IMGW
     POGB INT, --Pogoda bieżąca [kod] 40–49 mgła, 10 zamglenie IMGW
@@ -24,19 +25,21 @@ CREATE TABLE IMGW(
     SGRN INT, --Stan gruntu [kod] IMGW
     PKSN INT, --Pokrywa śnieżna [cm] 997/998/999 = kody specjalne IMGW
     USLN FLOAT, --Usłonecznienie IMGW
-    ROSW INT --Występowanie rosy [0/1] IMGW
+    ROSW INT, --Występowanie rosy [0/1] IMGW
+    PRIMARY KEY (ROK, MC, DZ, GG) --to sprawi, że sql nie przyjmie dwóch wierszy z tą samą godziną
 );
 
 
-CREATE TABLE GIOS(
+CREATE TABLE IF NOT EXISTS GIOS(
     ROK INT, --Rok obserwacji IMGW
     MC INT, --Miesiąc obserwacji (1–12) IMGW
     DZ INT, --Dzień miesiąca IMGW
     GG INT, --Godzina terminu obserwacji (0–23) IMGW
-    PM10 FLOAT --Stężenie PM10 [µg/m³] Kraków, Al. Krasińskiego, średnia 1-godzinna GIOŚ
+    PM10 FLOAT, --Stężenie PM10 [µg/m³] Kraków, Al. Krasińskiego, średnia 1-godzinna GIOŚ
+    PRIMARY KEY (ROK, MC, DZ, GG) --czas w UTC, koniec godziny uśredniania
 );
 
-CREATE TABLE ERA5(
+CREATE TABLE IF NOT EXISTS ERA5(
     ROK INT, --Rok obserwacji IMGW
     MC INT, --Miesiąc obserwacji (1–12) IMGW
     DZ INT, --Dzień miesiąca IMGW
@@ -61,4 +64,6 @@ CREATE TABLE ERA5(
     u FLOAT, --Wiatr – składowa u (850, 925 hPa) [m/s] ERA5 pressure levels
     v FLOAT --Wiatr – składowa v (850, 925 hPa) [m/s] ERA5 pressure levels
 );
+
+
 
