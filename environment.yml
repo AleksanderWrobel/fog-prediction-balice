@@ -1,0 +1,20 @@
+# Środowisko conda dla projektu "Prognozowanie mgły – Kraków-Balice".
+#
+# Utworzenie środowiska (jednorazowo, z głównego folderu projektu):
+#     conda env create -f environment.yml
+# Włączenie środowiska (za każdym razem przed pracą):
+#     conda activate mgla-balice
+# Aktualizacja po zmianie tego pliku:
+#     conda env update -f environment.yml --prune
+#
+# Wersje sprawdzone w projekcie: Python 3.12, pandas 3.0, numpy 2.5, matplotlib 3.11.
+# sqlite3 i pathlib są wbudowane w Pythona – nie trzeba ich instalować.
+
+name: mgla-balice
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pandas>=3.0      # tabele z danymi (DataFrame, loc, iloc, read_sql_query)
+  - numpy>=2.0       # obliczenia na liczbach (np.mean itd.)
+  - matplotlib>=3.9  # wykresy

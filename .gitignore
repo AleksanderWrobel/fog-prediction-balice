@@ -1,5 +1,5 @@
 # Surowe dane – setki MB, do odtworzenia skryptami z oryginalnych źródeł
-dane/
+raw_data/
 
 # Pliki tymczasowe z pobierania ERA5
 *.part

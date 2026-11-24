@@ -6,8 +6,38 @@
 
 ---
 
+## Jak zacząć
+
+1. **Sklonuj repozytorium** i wejdź do jego folderu.
+2. **Utwórz środowisko conda** (potrzebna jest conda, np. [Miniforge](https://github.com/conda-forge/miniforge)). Biblioteki (pandas, numpy, matplotlib) są wypisane w `environment.yml`:
+   ```bash
+   conda env create -f environment.yml
+   conda activate mgla-balice
+   ```
+   W VS Code wybierz to środowisko: `Ctrl+Shift+P` → „Python: Select Interpreter” → `mgla-balice`.
+3. **Uruchom instrukcję do analizy danych**. Pokazuje, jak wczytać dane, co jest w każdej kolumnie i jak wybierać fragmenty tabeli:
+   ```bash
+   python data_analysis/Instrukcja_do_analizy_danych.py
+   ```
+
+W każdym własnym skrypcie dane wczytuje się funkcją `data_import()` z `data_scripts/data_import_from_sql.py` (przykład na początku instrukcji).
+
+**Baza danych `data_scripts/baza.db` jest w repozytorium**, więc do analizy nie trzeba pobierać surowych danych. Są potrzebne tylko do odbudowania bazy, np. po zmianie `data_scripts/schema.sql`. W takim przypadku trzeba pobrać pliki IMGW (link w rozdziale 11), położyć je w `raw_data/IMGW_PIB_dane_terminowe_SYNOP/` i uruchomić `python data_scripts/import_IMGW_to_sql.py`. Folder `raw_data/` nie jest wysyłany na GitHuba.
+
+### Struktura folderów
+
+| Folder | Zawartość |
+|---|---|
+| `data_scripts/` | baza danych, jej schemat, import surowych danych i funkcja `data_import()` |
+| `data_analysis/` | analizy i wykresy danych, instrukcja do analizy danych |
+| `prediction/` | przygotowanie danych do treningu, modele, trening i testy |
+| `raw_data/` | surowe pliki IMGW i GIOŚ (tylko lokalnie, poza gitem) |
+
+---
+
 ## Spis treści
 
+0. [Jak zacząć](#jak-zacząć)
 1. [Źródła danych](#1-źródła-danych)
 2. [Zakres przestrzenny](#2-zakres-przestrzenny)
 3. [Struktura danych](#3-struktura-danych)

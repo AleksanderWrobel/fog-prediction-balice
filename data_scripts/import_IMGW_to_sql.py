@@ -1,14 +1,17 @@
 # Import danych terminowych SYNOP IMGW (Kraków-Balice) do bazy SQLite.
 # Struktura tabel jest w schema.sql – ten skrypt tylko go uruchamia i wkłada dane.
-# Uruchamiać z głównego folderu projektu:  python scripts/import_IMGW_to_sql.py
+# Uruchamianie (z dowolnego folderu, np. z głównego folderu projektu):  python data_scripts/import_IMGW_to_sql.py
 
 import csv
 import sqlite3
 from pathlib import Path
 
-DANE = Path("dane/IMGW_PIB_dane_terminowe_SYNOP")
-SCHEMA = "schema.sql"
-BAZA = "baza.db"
+# Ścieżki liczymy od położenia TEGO pliku, a nie od folderu, z którego uruchamiamy skrypt.
+# Dzięki temu skrypt działa z dowolnego folderu i zawsze trafia do właściwej bazy.
+FOLDER = Path(__file__).resolve().parent                            # = data_scripts/
+DANE = FOLDER.parent / "raw_data" / "IMGW_PIB_dane_terminowe_SYNOP"     # = <projekt>/raw_data/...
+SCHEMA = FOLDER / "schema.sql"                                      # = data_scripts/schema.sql
+BAZA = FOLDER / "baza.db"                                           # = data_scripts/baza.db
 
 # 1. Nazwy 107 kolumn CSV z s_t_format.txt (pliki CSV nie mają nagłówka)
 KOLUMNY = []        # lista na nazwy kolumn, w tej samej kolejności co w plikach CSV
