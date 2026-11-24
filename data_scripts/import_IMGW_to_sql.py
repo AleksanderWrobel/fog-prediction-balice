@@ -23,11 +23,14 @@ assert len(KOLUMNY) == 107
 # 2. Otwieramy bazę (jeśli nie istnieje, SQLite ją utworzy)
 con = sqlite3.connect(BAZA)
 
-# 3. Tworzymy brakujące tabele z schema.sql (CREATE TABLE IF NOT EXISTS)
-#    i czyścimy TYLKO tabelę IMGW – dane z innych źródeł (GIOS, ERA5) zostają.
+# 3. Usuwamy starą tabelę IMGW i tworzymy ją od nowa według schema.sql.
+#    Samo CREATE TABLE IF NOT EXISTS nie zmienia istniejącej tabeli, więc bez DROP
+#    zmiany kolumn w schema.sql (np. HPON -> HPOD) nie trafiłyby do bazy.
+#    Tabela IMGW i tak jest w całości wczytywana od nowa z plików CSV, więc nic nie tracimy.
+#    Inne tabele (gdyby się pojawiły) zostają nietknięte.
+con.execute("DROP TABLE IF EXISTS IMGW")
 with open(SCHEMA, encoding="utf-8") as f:
     con.executescript(f.read())
-con.execute("DELETE FROM IMGW")
 
 # 4. Pytamy bazę, jakie kolumny ma tabela IMGW -> ['ROK', 'MC', 'DZ', 'GG', 'WID', ...]
 POLA = [kol[1] for kol in con.execute("PRAGMA table_info(IMGW)")]

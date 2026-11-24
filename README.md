@@ -122,14 +122,22 @@ Na początek skupiamy się na **najważniejszych parametrach z IMGW**. Pierwsze 
 | 11 | Kierunek wiatru | `KRWR` |
 | 12 | Zachmurzenie ogólne | `NOG` |
 | 13 | Zachmurzenie niskie | `CLCM` |
-| 14 | Wysokość podstawy chmur | `HPON` |
+| 14 | Wysokość podstawy chmur [kod] | `HPOD` |
 | 15 | Ciśnienie na poziomie morza | `PPPM` |
 | 16 | Opad za 6 godzin | `WO6G` |
 | 17 | Temperatura gruntu na głębokości 5 cm | `TG05` |
 | 18 | Usłonecznienie | `USLN` |
 | 19 | Występowanie rosy | `ROSW` |
 
-> **Dlaczego `WID`, a nie `WIDA`:** w plikach IMGW widzialność w metrach (`WIDA` – automat, `WIDO` – obserwator) jest dopiero od 2011 r., a `WIDA` brakuje dodatkowo w 2024 r. i w części 2025 r. Kod `WID` jest wypełniony we wszystkich latach 2001–2025, więc z niego budujemy etykietę i wejście. Przedziały kodu (np. które kody oznaczają < 1000 m) warto sprawdzić, porównując `WID` z `WIDO` w latach 2011–2025.
+> **Dlaczego `WID`, a nie `WIDA`:** w plikach IMGW widzialność w metrach (`WIDA` – automat, `WIDO` – obserwator) jest dopiero od 2011 r., a `WIDA` brakuje dodatkowo w 2024 r. i w części 2025 r. Kod `WID` jest wypełniony we wszystkich latach 2001–2025, więc z niego budujemy etykietę i wejście. Porównanie z `WIDO` (2011–2025) potwierdziło, że kody 1–3 oznaczają < 1000 m (patrz pułapka 1).
+>
+> **Dlaczego `HPOD`:** z tego samego powodu podstawę chmur bierzemy jako kod `HPOD`, a nie wysokość w metrach. Pole w metrach IMGW wypełnia dopiero od 2011 r., a `HPOD` jest dostępne we wszystkich latach 2001–2025 (braki < 1% godzin). Kod według SYNOP:
+>
+> | `HPOD` | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+> |---|---|---|---|---|---|---|---|---|---|---|
+> | podstawa [m] | < 50 | 50–100 | 100–200 | 200–300 | 300–600 | 600–1000 | 1000–1500 | 1500–2000 | 2000–2500 | ≥ 2500 lub brak chmur |
+>
+> Brak wartości (`/` w pliku) występuje dokładnie wtedy, gdy niebo jest niewidoczne (`NOG` = 9), najczęściej z powodu mgły. To sygnał związany z mgłą, a nie zwykły brak danych.
 
 Dopiero w przyszłości można myśleć o rozbudowie modeli o kolejne parametry: pozostałe pola z tabeli 5.1 (np. tendencja ciśnienia, rodzaj opadu, temperatura minimalna przy gruncie, stan gruntu, pokrywa śnieżna), PM10 z GIOŚ (5.2) i dane METAR (etap 2).
 
@@ -148,7 +156,7 @@ https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/dane_meteorologic
 | 7 | Kierunek wiatru | `KRWR` | ★★★ | Pokazuje, skąd napływa powietrze: wilgotne z doliny Wisły czy Rudawy (adwekcja), czy suche. Kodujemy jako składowe u/v (parametr 26), nie surowe stopnie. |
 | 8 | Zachmurzenie ogólne | `NOG` | ★★★ | Czyste niebo w nocy oznacza silne wypromieniowanie długofalowe i szybkie wychładzanie gruntu. Chmury działają jak koc i blokują mgłę radiacyjną. |
 | 9 | Zachmurzenie niskie | `CLCM` | ★★ | Niskie chmury najsilniej hamują wychładzanie. Ich obecność to też sygnał wilgotnej warstwy przy ziemi. |
-| 10 | Wysokość podstawy chmur | `HPON`/`HPOD`, METAR `skyl1` | ★★ | Obniżający się stratus to osobny mechanizm powstawania mgły (*cloud base lowering*). Ważne przy mgłach niebędących radiacyjnymi. |
+| 10 | Wysokość podstawy chmur | `HPOD` (kod), METAR `skyl1` | ★★ | Obniżający się stratus to osobny mechanizm powstawania mgły (*cloud base lowering*). Ważne przy mgłach niebędących radiacyjnymi. |
 | 11 | Ciśnienie na poziomie morza | `PPPM` | ★★ | Wysokie ciśnienie oznacza wyż, a więc osiadanie, inwersję, słaby wiatr i bezchmurne noce: klasyczne warunki mgłowe. |
 | 12 | Tendencja ciśnienia | `APP`, `TECH` | ★★ | Rosnące lub stabilne ciśnienie wskazuje na budujący się wyż, a spadające na nadchodzący front, który zwykle rozprasza mgłę. |
 | 13 | Opad (6 h) i jego rodzaj | `WO6G`, `ROPT` | ★★ | Mokre podłoże po deszczu dostarcza wilgoci do warstwy przyziemnej. Mgła często pojawia się w pierwszą bezchmurną noc po opadach. |
@@ -277,13 +285,25 @@ Model prognozuje mgłę w okresie **od początku września do końca marca**. W 
 
 ## 10. Pułapki, o których warto wiedzieć od początku
 
-1. **Definicja etykiety.** Standard WMO to widzialność < 1000 m. Można też użyć kodów pogody bieżącej 40–49 (mgła). Trzeba zdecydować, czy przewidujemy „mgłę w godzinie *t+h*”, czy „mgłę kiedykolwiek w oknie *t+1…t+h*”.
-   Proponowana definicja, odróżniająca mgłę od smogu:
-   > **mgła = widzialność < 1000 m ORAZ (RH ≥ 95% LUB kod pogody bieżącej 40–49)**
+1. **Definicja etykiety.** Przyjmujemy standard WMO:
+   > **mgła = widzialność < 1000 m**, czyli kod `WID` ≤ 3
 
+   Kody `WID` odpowiadają przedziałom: 1 = 50–200 m, 2 = 200–500 m, 3 = 500–1000 m, 4 = 1–2 km (sprawdzone na `WIDO` z lat 2011–2025; kod 0 w danych nie występuje).
+   **Dlaczego bez dodatkowych warunków:** sprawdziliśmy, czy sam próg widzialności nie łapie smogu lub opadów. W sezonie IX–III (2001–2025) jest 5870 godzin z `WID` ≤ 3, z czego 5837 (99,4%) to mgła według kodu pogody bieżącej (40–49) lub RH ≥ 95%. Pozostałe 33 godziny to głównie intensywne opady śniegu. Dodatkowy warunek (np. „ORAZ RH ≥ 95% LUB kod 40–49”) praktycznie nic by nie zmienił, a komplikowałby etykietę.
    Progu stężenia PM nie używamy: w Krakowie mgła i smog często występują jednocześnie (ta sama inwersja zatrzymuje wilgoć i pył), a pomiary PM z lat 80. praktycznie nie istnieją.
+   **Horyzont:** przewidujemy mgłę **dokładnie w godzinie *t+h***, a nie „kiedykolwiek w oknie *t+1…t+h*”. Etykieta dla horyzontu *h* to więc `WID` ≤ 3 w wierszu o *h* godzin późniejszym niż chwila prognozy *t*:
+   - modele 1–5 (podejście A): każdy przewiduje jedną taką etykietę, odpowiednio dla *h* = 1, 2, 3, 4 i 5 h,
+   - model 6 (podejście B): przewiduje wszystkie 5 etykiet naraz, po jednym wyjściu na każdą godzinę *t+1 … t+5*.
+
+   Wszystkie 6 modeli dostaje te same dane wejściowe i jest oceniane na tych samych etykietach, więc różnica w wynikach wynika tylko z budowy modelu.
+
+   > **Na później: klasy LVP.** Dla lotniska ważniejsza od samej mgły jest procedura ograniczonej widzialności (LVP 0–3), wyznaczana z RVR (widzialności wzdłuż pasa) i pułapu chmur. Tak robiły prace z Innsbrucka dla Wiednia (Kneringer i in., Dietz i in.). Po napisaniu modeli dla mgły można przejść na klasy przybliżające LVP, pamiętając, że:
+   > - nie mamy RVR, tylko widzialność meteorologiczną (zwykle mniejszą od RVR), więc klasy będą przybliżeniem,
+   > - niski pułap bez mgły też włącza LVP: w sezonie IX–III ok. 4,7% godzin ma podstawę chmur < 100 m przy zachmurzeniu ≥ 5/8, czyli mniej więcej tyle samo co godzin z mgłą,
+   > - progi LVP ustala każde lotnisko – dla EPKK trzeba je sprawdzić w AIP Polska (EPKK AD 2.22),
+   > - klasy uporządkowane można modelować jako kilka pytań binarnych: P(klasa ≥ 1), P(klasa ≥ 2), P(klasa ≥ 3).
 2. **Powstawanie a utrzymywanie się mgły.** Jeśli mgła jest teraz, model łatwo przewidzi, że będzie za godzinę, i metryki wyglądają świetnie. Ciekawe jest powstawanie mgły, więc osobno oceniamy przypadki, w których w chwili *t* mgły nie ma.
-3. **Niezbalansowane klasy.** Mgła to kilka procent godzin. Używamy PR-AUC, Brier score i diagramów wiarygodności (skoro chcemy prawdopodobieństwa, kalibracja jest kluczowa), a nie samej trafności (*accuracy*). Jeśli w funkcji straty damy wagi klas (np. `scale_pos_weight` w XGBoost), kalibracja się psuje i trzeba ją potem poprawić (np. regresją izotoniczną).
+3. **Niezbalansowane klasy.** Mgła to kilka procent godzin (w sezonie IX–III 2001–2025: 4,6%). Używamy PR-AUC, Brier score i diagramów wiarygodności (skoro chcemy prawdopodobieństwa, kalibracja jest kluczowa), a nie samej trafności (*accuracy*). Jeśli w funkcji straty damy wagi klas (np. `scale_pos_weight` w XGBoost), kalibracja się psuje i trzeba ją potem poprawić (np. regresją izotoniczną).
 4. **Baseline'y.** Zawsze porównujemy z persystencją i klimatologią (częstość mgły dla danej godziny i miesiąca). Wynik bez tego porównania nic nie znaczy.
 5. **Niestacjonarność danych 1980–2024.** Częstość mgły w Europie wyraźnie spadła od lat 80., m.in. przez spadek zanieczyszczenia aerozolem. Do tego dochodzi zmiana z widzialności określanej przez obserwatora na pomiar automatyczny, co widać w osobnych polach `WIDO` i `WIDA`.
    W etapie 2 dochodzi zmiana źródła: przed 2001 r. dane stacyjne pochodzą z METAR, a od 2001 r. z IMGW. Trzeba sprawdzić, czy na granicy źródeł nie ma sztucznego skoku, np. w częstości mgły. Najprościej porównać METAR i IMGW w latach, w których dostępne są oba źródła.

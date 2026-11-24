@@ -24,7 +24,7 @@
 #  11. | Kierunek wiatru                       | KRWR  |  23        | WKRWR  (24)
 #  12. | Zachmurzenie ogólne                   | NOG   |  21        | WNOG   (22)
 #  13. | Zachmurzenie niskie                   | CLCM  |  54        | WCLCM  (55)
-#  14. | Wysokość podstawy chmur (niższej)     | HPON  |   8        | WHPON  (9)
+#  14. | Wysokość podstawy chmur [kod]         | HPOD  |   6        | WHPOD  (7)
 #  15. | Ciśnienie na poziomie morza           | PPPM  |  43        | WPPPM  (44)
 #  16. | Opad za 6 godzin                      | WO6G  |  48        | WWO6G  (49)
 #  17. | Temperatura gruntu na głębokości 5 cm | TG05  |  77        | WTG05  (78)
@@ -34,6 +34,8 @@
 # Widzialność: bierzemy WID (kod), a nie WIDA (automat, kolumna 20) ani WIDO (operator, kolumna 18).
 # WID jest wypełnione we wszystkich latach 2001–2025, a WIDA/WIDO dopiero od 2011 r.
 # (WIDA brak w 2024 r. i w części 2025 r.).
+# Podstawa chmur: bierzemy HPOD (kod 0-9), a nie HPON (metry) – HPON jest dopiero od 2011 r.,
+# a HPOD jest wypełnione we wszystkich latach 2001–2025. "/" w HPOD = niebo niewidoczne (NOG = 9).
 
 
 from pathlib import Path
