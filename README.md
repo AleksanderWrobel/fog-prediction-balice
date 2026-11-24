@@ -22,7 +22,17 @@
 
 W każdym własnym skrypcie dane wczytuje się funkcją `data_import()` z `data_scripts/data_import_from_sql.py` (przykład na początku instrukcji).
 
-**Baza danych `data_scripts/baza.db` jest w repozytorium**, więc do analizy nie trzeba pobierać surowych danych. Są potrzebne tylko do odbudowania bazy, np. po zmianie `data_scripts/schema.sql`. W takim przypadku trzeba pobrać pliki IMGW (link w rozdziale 11), położyć je w `raw_data/IMGW_PIB_dane_terminowe_SYNOP/` i uruchomić `python data_scripts/import_IMGW_to_sql.py`. Folder `raw_data/` nie jest wysyłany na GitHuba.
+**Wszystkie dane są w bazie `data_scripts/baza.db`**, która jest w repozytorium. Po sklonowaniu projektu można od razu z nich korzystać, bez pobierania surowych danych.
+
+> ⚠️ **Zasada dla członków projektu: nie zmieniamy `baza.db`.**
+> - Z bazy **tylko czytamy** – przez funkcję `data_import()`. Otwiera ona bazę w trybie tylko do odczytu, więc nic w niej nie zmienia.
+> - **Nie uruchamiamy** `data_scripts/import_IMGW_to_sql.py` i nie edytujemy bazy ręcznie. Nawet ponowny import bez zmian w kodzie tworzy nowy plik, który git uzna za zmieniony.
+> - **Nie wysyłamy `baza.db` w swoich commitach.** Jeśli `git status` pokazuje ją jako zmienioną, przywróć wersję z repozytorium: `git restore data_scripts/baza.db`.
+> - Bazę aktualizuje **tylko jedna osoba – opiekun projektu**. Jeśli potrzebujesz zmiany w bazie (np. nowej kolumny albo cechy w `schema.sql`), zgłoś to opiekunowi. Po aktualizacji wystarczy `git pull`.
+>
+> Dlaczego: `baza.db` to plik binarny. Gdy dwie osoby wyślą różne wersje, git nie potrafi ich połączyć i jedną z nich trzeba wyrzucić.
+
+Surowe dane (folder `raw_data/`, poza gitem) są potrzebne tylko opiekunowi do odbudowania bazy: pliki IMGW (link w rozdziale 11) w `raw_data/IMGW_PIB_dane_terminowe_SYNOP/`, potem `python data_scripts/import_IMGW_to_sql.py`.
 
 ### Struktura folderów
 

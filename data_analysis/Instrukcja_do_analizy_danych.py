@@ -22,11 +22,15 @@
 #
 # W VS Code: Ctrl+Shift+P -> "Python: Select Interpreter" -> wybrać środowisko "mgla-balice".
 #
-# Baza danych (data_scripts/baza.db) jest w repozytorium, więc do analizy NIE trzeba pobierać
-# surowych danych. Są potrzebne tylko do odbudowania bazy (np. po zmianie data_scripts/schema.sql):
-#   - pliki s_t_566_*.csv i s_t_format.txt z IMGW (link w README.md, rozdział 11) trzeba położyć w
-#     raw_data/IMGW_PIB_dane_terminowe_SYNOP/ (folder raw_data/ nie jest wysyłany na GitHuba),
-#   - potem uruchomić:  python data_scripts/import_IMGW_to_sql.py
+# Wszystkie dane są w bazie data_scripts/baza.db, która jest w repozytorium – po sklonowaniu
+# projektu można od razu z nich korzystać, bez pobierania surowych danych.
+#
+# UWAGA – NIE ZMIENIAMY baza.db:
+#   - z bazy tylko CZYTAMY, przez funkcję data_import() (otwiera bazę tylko do odczytu),
+#   - NIE uruchamiamy data_scripts/import_IMGW_to_sql.py i nie wysyłamy baza.db w swoich commitach,
+#   - jeśli "git status" pokazuje baza.db jako zmienioną:  git restore data_scripts/baza.db
+#   - bazę aktualizuje tylko opiekun projektu; potrzebną zmianę w bazie zgłaszamy jemu.
+# Szczegóły i powód: README.md, sekcja "Jak zacząć".
 
 
 # =====================================================================================
