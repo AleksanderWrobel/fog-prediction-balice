@@ -7,7 +7,7 @@
 # Aktualizacja po zmianie tego pliku:
 #     conda env update -f environment.yml --prune
 #
-# Wersje sprawdzone w projekcie: Python 3.12, pandas 3.0, numpy 2.5, matplotlib 3.11.
+# Wersje sprawdzone w projekcie: Python 3.12, pandas 3.1, numpy 2.5, matplotlib 3.11, openpyxl 3.1.
 # sqlite3 i pathlib są wbudowane w Pythona – nie trzeba ich instalować.
 
 name: mgla-balice
@@ -18,3 +18,4 @@ dependencies:
   - pandas>=3.0      # tabele z danymi (DataFrame, loc, iloc, read_sql_query)
   - numpy>=2.0       # obliczenia na liczbach (np.mean itd.)
   - matplotlib>=3.9  # wykresy
+  - openpyxl>=3.1    # czytanie plików Excel (.xlsx) z GIOŚ – potrzebne tylko w import_GIOS_to_sql.py

@@ -1,14 +1,17 @@
 # =====================================================================================
-#  OPIS DANYCH IMGW UŻYWANYCH W PROJEKCIE
-#  Źródło: IMGW-PIB, dane terminowe SYNOP, stacja Kraków-Balice (kod 12566),
+#  OPIS DANYCH UŻYWANYCH W PROJEKCIE
+#  Źródło 1: IMGW-PIB, dane terminowe SYNOP, stacja Kraków-Balice (kod 12566),
 #  pliki raw_data/IMGW_PIB_dane_terminowe_SYNOP/s_t_566_*.csv (bez nagłówka, kodowanie cp1250).
 #  Pełny opis wszystkich 107 kolumn pliku CSV: raw_data/IMGW_PIB_dane_terminowe_SYNOP/s_t_format.txt.
+#  Źródło 2: GIOŚ, bank danych pomiarowych – godzinowe stężenia PM10 w Krakowie,
+#  pliki raw_data/GIOŚ_PM10/RRRR_PM10_1g.xlsx (tabela GIOS_PM10 w bazie, skrypt import_GIOS_to_sql.py).
 # =====================================================================================
 #
-# Funkcja data_import() (niżej w tym pliku) zwraca tabelę df z 19 kolumnami, lata 2001–2025, co 1 h:
+# Funkcja data_import() (niżej w tym pliku) zwraca tabelę df z 20 kolumnami, lata 2001–2025, co 1 h:
 #   - kolumny 1–16 pochodzą z plików CSV IMGW (tabela IMGW w bazie, schema.sql),
 #   - kolumny 17–18 wylicza baza (widok IMGW_cechy w schema.sql),
-#   - kolumnę 19 dodaje funkcja data_import() podczas czyszczenia danych.
+#   - kolumnę 19 dodaje funkcja data_import() podczas czyszczenia danych,
+#   - kolumna 20 pochodzi z GIOŚ (tabela GIOS_PM10, dołączana w widoku IMGW_cechy).
 #
 # Nr kolumny = numer kolumny w plikach s_t_566_*.csv liczony OD 0, tak jak indeks w pandas
 #              (df.iloc[:, nr]). W Excelu kolumna ma numer o 1 większy (A = 1).
@@ -41,6 +44,12 @@
 #  17. | Deficyt punktu rosy                   | DEFICYT            | widok IMGW_cechy (schema.sql)
 #  18. | Zmiana temperatury za 3 h             | DT_3H              | widok IMGW_cechy (schema.sql)
 #  19. | Niebo niewidoczne (flaga 0/1)         | NIEBO_NIEWIDOCZNE  | funkcja data_import()
+#
+#  KOLUMNY Z GIOŚ (inne źródło niż IMGW, osobna tabela w bazie)
+#  Lp. | Parametr                              | Skrót | Skąd się bierze
+#  ----+---------------------------------------+-------+------------------------------------------------
+#  20. | Stężenie pyłu PM10                    | PM10  | tabela GIOS_PM10 (import_GIOS_to_sql.py),
+#      |                                       |       | dołączana w widoku IMGW_cechy (schema.sql)
 #
 #  Z pierwotnej listy usunięto TG05 (temperatura gruntu), USLN (usłonecznienie) i ROSW (rosa) –
 #  w latach 2001–2025 są prawie puste (TG05: tylko 2011–2015 i część 2025, USLN: prawie tylko 2025,
@@ -162,6 +171,22 @@
 #           0 = niebo widoczne.
 #       Przechowuje informację, która ginie po zamianie NOG 9 -> 8 i HPOD brak -> 0.
 #       To NIE jest etykieta mgły: obejmuje tylko ok. 28% godzin z mgłą (przy płytkiej mgle niebo często widać).
+#
+#  20.  PM10 – STĘŻENIE PYŁU ZAWIESZONEGO PM10 [µg/m³]
+#       Masa cząstek o średnicy do 10 µm w 1 m³ powietrza. Źródło: GIOŚ, nie IMGW.
+#       Wartość = średnia z dwóch krakowskich stacji: Al. Krasińskiego (centrum, przy ruchliwej ulicy)
+#       i ul. Bulwarowej (Nowa Huta) – z tych, które w danej godzinie mają pomiar.
+#       Tylko te dwie stacje mierzą co godzinę przez cały okres 2003–2025 (Krasińskiego nie ma w 2022 r.,
+#       wtedy PM10 = sama Bulwarowa). W bazie, w tabeli GIOS_PM10, są też obie stacje osobno
+#       (PM10_KRAS, PM10_BULW) – do df trafia tylko średnia.
+#       Czas: GIOŚ podaje czas CET (UTC+1) i godzinę KOŃCA uśredniania; w bazie jest to przeliczone na UTC,
+#       więc PM10 w wierszu o godzinie GG = średnia z godziny GG−1 … GG UTC (tuż przed obserwacją IMGW).
+#       Braki (NaN): cały 2001 i 2002 r. (GIOŚ ma wtedy tylko średnie dobowe) oraz ok. 1,5% godzin
+#       2003–2025 (awarie obu stacji naraz). Nie uzupełniamy ich – drzewa (boosting) radzą sobie z NaN.
+#       Zakres w danych: 1 … 847,5. Norma dobowa: 50 µg/m³.
+#       Dlaczego ważne dla mgły: cząstki pyłu są jądrami kondensacji, na których skrapla się para wodna,
+#       a wysokie PM10 zimą oznacza słaby wiatr i inwersję – te same warunki sprzyjają mgle.
+#       W sezonie IX–III średnie PM10 przy mgle to ok. 111 µg/m³, bez mgły ok. 64 µg/m³.
 
 
 
@@ -188,6 +213,7 @@ def data_import():
     # SELECT * FROM IMGW_cechy zwraca:
     # - wszystkie kolumny z tabeli IMGW (dzięki SELECT * w widoku),
     # - dwie wyliczone kolumny: DEFICYT (T − Td) i DT_3H (zmiana temperatury za 3 h),
+    # - kolumnę PM10 z tabeli GIOS_PM10 (dane GIOŚ, dołączone po dacie i godzinie),
     # - tylko wiersze z lat 2001 i późniejszych.
     path = Path(__file__).resolve().parent / "baza.db"     # baza.db leży obok tego pliku, w data_scripts/
     connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
@@ -233,6 +259,14 @@ def data_import():
     #     żeby model nie widział "9" jako "więcej chmur niż pełne zachmurzenie".
     df.loc[df["NOG"] == 9, "NOG"] = 8
 
+
+    # =====================================================================================
+    #  4. PM10 – PRZENIESIENIE NA KONIEC TABELI
+    # =====================================================================================
+    # PM10 pochodzi z innego źródła (GIOŚ), więc stawiamy ją jako ostatnią kolumnę (nr 20).
+    # Braków (NaN) celowo NIE uzupełniamy – patrz opis kolumny 20 na górze pliku.
+    df["PM10"] = df.pop("PM10")      # pop wyjmuje kolumnę z tabeli, przypisanie dokleja ją na końcu
+
     return df
 
 
@@ -242,7 +276,7 @@ if __name__ == "__main__":
     df = data_import()          # wywołujemy funkcję i zapisujemy zwróconą tabelę
 
     # =====================================================================================
-    #  4. KONTROLA – ROZMIAR TABELI I BRAKI DANYCH
+    #  5. KONTROLA – ROZMIAR TABELI I BRAKI DANYCH
     # =====================================================================================
     print(df.shape)             # rozmiar tabeli: (liczba wierszy, liczba kolumn)
     print(df.isna().sum())      # liczba braków (NaN) w każdej kolumnie

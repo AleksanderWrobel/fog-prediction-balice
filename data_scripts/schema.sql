@@ -19,14 +19,30 @@ CREATE TABLE IF NOT EXISTS IMGW(
 );
 
 
--- Widok z cechami wyliczanymi z IMGW. Nie przechowuje danych, tylko liczy je przy każdym SELECT.
+-- Stężenie PM10 z GIOŚ (Kraków), co 1 h, od 2003 r. Wypełnia je skrypt import_GIOS_to_sql.py.
+-- Czas jest przeliczony na UTC (jak w IMGW): wartość z godziny GG to średnia z godziny GG-1 … GG UTC.
+CREATE TABLE IF NOT EXISTS GIOS_PM10(
+    ROK INT, --Rok (UTC)
+    MC INT, --Miesiąc (UTC)
+    DZ INT, --Dzień miesiąca (UTC)
+    GG INT, --Godzina KOŃCA okresu uśredniania (0–23 UTC)
+    PM10_KRAS FLOAT, --PM10 [µg/m³], stacja Kraków, Al. Krasińskiego (brak całego 2022 r.)
+    PM10_BULW FLOAT, --PM10 [µg/m³], stacja Kraków, ul. Bulwarowa
+    PM10 FLOAT, --PM10 [µg/m³], średnia z dostępnych stacji (Krasińskiego, Bulwarowa); NULL gdy obie bez pomiaru
+    PRIMARY KEY (ROK, MC, DZ, GG)
+);
+
+
+-- Widok z cechami wyliczanymi z IMGW i z dołączonym PM10 z GIOŚ. Nie przechowuje danych, tylko liczy je przy każdym SELECT.
 -- Widok można bezpiecznie usuwać i tworzyć od nowa (DROP + CREATE), bo nic w nim nie jest zapisane.
 -- Dzięki temu zmiana definicji widoku zadziała od razu, bez usuwania baza.db.
+-- LEFT JOIN: bierzemy WSZYSTKIE godziny IMGW; gdy GIOŚ nie ma danej godziny (np. 2001–2002), PM10 = NULL.
 DROP VIEW IF EXISTS IMGW_cechy;
 CREATE VIEW IMGW_cechy AS
-SELECT *,
-       ROUND(TEMP - TPTR, 1) AS DEFICYT,   --Deficyt punktu rosy T − Td [°C]
-       ROUND(TEMP - LAG(TEMP, 3) OVER (ORDER BY ROK, MC, DZ, GG), 1) AS DT_3H   --Zmiana temperatury za 3 h [°C]
-FROM IMGW
-WHERE ROK >= 2001;   --LAG cofa się o wiersze, nie o godziny; przed 2001 dane są co 3 h
-
+SELECT I.*,
+       ROUND(I.TEMP - I.TPTR, 1) AS DEFICYT,   --Deficyt punktu rosy T − Td [°C]
+       ROUND(I.TEMP - LAG(I.TEMP, 3) OVER (ORDER BY I.ROK, I.MC, I.DZ, I.GG), 1) AS DT_3H,   --Zmiana temperatury za 3 h [°C]
+       G.PM10   --Stężenie PM10 [µg/m³] z GIOŚ (średnia Krasińskiego i Bulwarowej)
+FROM IMGW AS I
+LEFT JOIN GIOS_PM10 AS G USING (ROK, MC, DZ, GG)
+WHERE I.ROK >= 2001;   --LAG cofa się o wiersze, nie o godziny; przed 2001 dane są co 3 h

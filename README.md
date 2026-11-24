@@ -9,7 +9,7 @@
 ## Jak zacząć
 
 1. **Sklonuj repozytorium** i wejdź do jego folderu.
-2. **Utwórz środowisko conda** (potrzebna jest conda, np. [Miniforge](https://github.com/conda-forge/miniforge)). Biblioteki (pandas, numpy, matplotlib) są wypisane w `environment.yml`:
+2. **Utwórz środowisko conda** (potrzebna jest conda, np. [Miniforge](https://github.com/conda-forge/miniforge)). Biblioteki (pandas, numpy, matplotlib, openpyxl) są wypisane w `environment.yml`:
    ```bash
    conda env create -f environment.yml
    conda activate mgla-balice
@@ -24,15 +24,29 @@ W każdym własnym skrypcie dane wczytuje się funkcją `data_import()` z `data_
 
 **Wszystkie dane są w bazie `data_scripts/baza.db`**, która jest w repozytorium. Po sklonowaniu projektu można od razu z nich korzystać, bez pobierania surowych danych.
 
+W bazie są dwie tabele, po jednej na każde źródło, i widok, który je łączy:
+
+| Obiekt w bazie | Co zawiera | Skąd się bierze |
+|---|---|---|
+| tabela `IMGW` | obserwacje SYNOP z Balic (WID, TEMP, TPTR, wiatr, chmury, …), co 1 h od 2001 r. | `data_scripts/import_IMGW_to_sql.py` |
+| tabela `GIOS_PM10` | godzinowe PM10 z dwóch stacji w Krakowie (Al. Krasińskiego, ul. Bulwarowa) i ich średnia, 2003–2025, czas w UTC | `data_scripts/import_GIOS_to_sql.py` |
+| widok `IMGW_cechy` | wszystkie godziny IMGW od 2001 r. + cechy wyliczane (`DEFICYT`, `DT_3H`) + kolumna `PM10` z GIOŚ | `data_scripts/schema.sql` |
+
+Funkcja `data_import()` czyta widok `IMGW_cechy` i zwraca tabelę z 20 kolumnami (19 z IMGW i cech wyliczanych + `PM10`). Opis każdej kolumny jest na początku `data_scripts/data_import_from_sql.py` i w instrukcji do analizy danych.
+
 > ⚠️ **Zasada dla członków projektu: nie zmieniamy `baza.db`.**
 > - Z bazy **tylko czytamy** – przez funkcję `data_import()`. Otwiera ona bazę w trybie tylko do odczytu, więc nic w niej nie zmienia.
-> - **Nie uruchamiamy** `data_scripts/import_IMGW_to_sql.py` i nie edytujemy bazy ręcznie. Nawet ponowny import bez zmian w kodzie tworzy nowy plik, który git uzna za zmieniony.
+> - **Nie uruchamiamy** `data_scripts/import_IMGW_to_sql.py` ani `data_scripts/import_GIOS_to_sql.py` i nie edytujemy bazy ręcznie. Nawet ponowny import bez zmian w kodzie tworzy nowy plik, który git uzna za zmieniony.
 > - **Nie wysyłamy `baza.db` w swoich commitach.** Jeśli `git status` pokazuje ją jako zmienioną, przywróć wersję z repozytorium: `git restore data_scripts/baza.db`.
 > - Bazę aktualizuje **tylko jedna osoba – opiekun projektu**. Jeśli potrzebujesz zmiany w bazie (np. nowej kolumny albo cechy w `schema.sql`), zgłoś to opiekunowi. Po aktualizacji wystarczy `git pull`.
 >
 > Dlaczego: `baza.db` to plik binarny. Gdy dwie osoby wyślą różne wersje, git nie potrafi ich połączyć i jedną z nich trzeba wyrzucić.
 
-Surowe dane (folder `raw_data/`, poza gitem) są potrzebne tylko opiekunowi do odbudowania bazy: pliki IMGW (link w rozdziale 11) w `raw_data/IMGW_PIB_dane_terminowe_SYNOP/`, potem `python data_scripts/import_IMGW_to_sql.py`.
+Surowe dane (folder `raw_data/`, poza gitem) są potrzebne tylko opiekunowi do odbudowania bazy (linki w rozdziale 11):
+- pliki IMGW w `raw_data/IMGW_PIB_dane_terminowe_SYNOP/`, potem `python data_scripts/import_IMGW_to_sql.py` (ok. 7 s),
+- pliki GIOŚ `RRRR_PM10_1g.xlsx` w `raw_data/GIOŚ_PM10/`, potem `python data_scripts/import_GIOS_to_sql.py` (ok. 2 min).
+
+Każdy skrypt usuwa i tworzy od nowa tylko swoją tabelę, więc można je uruchamiać w dowolnej kolejności.
 
 ### Struktura folderów
 
@@ -68,7 +82,7 @@ Surowe dane (folder `raw_data/`, poza gitem) są potrzebne tylko opiekunowi do o
 |---|---|---|---|
 | **IMGW-PIB – dane terminowe SYNOP** | Obserwacje ze stacji synoptycznej Kraków-Balice (kod 12566): widzialność, pogoda bieżąca, T, Td, RH, wiatr, chmury, ciśnienie, grunt, śnieg | godzinowa od 2001 r., wcześniej co 3 h | Podstawowe źródło. Archiwum od 1966 r. Opis pól w pliku `s_t_format.txt`. |
 | **METAR – Iowa Environmental Mesonet (IEM)** | Depesze lotniskowe EPKK: widzialność, chmury, zjawiska, T, Td, wiatr, ciśnienie | co 30 min | **Etap 2:** źródło godzinowych obserwacji sprzed 2001 r., kiedy IMGW ma krok 3 h. Zasięg archiwum dla EPKK do sprawdzenia. |
-| **GIOŚ – jakość powietrza** | **tylko PM10**, stacja Kraków, Al. Krasińskiego | godzinowa (`1g`); w części lat może być tylko dobowa (`24g`) | Archiwum od 2000 r. Czas w **CET** – przy imporcie przesunąć na UTC. |
+| **GIOŚ – jakość powietrza** | **tylko PM10**, średnia ze stacji Kraków, Al. Krasińskiego i Kraków, ul. Bulwarowa | godzinowa (`1g`) od 2003 r.; w 2001–2002 tylko dobowa (`24g`), której nie używamy | **Już w bazie** (tabela `GIOS_PM10`, kolumna `PM10`). Czas w plikach GIOŚ jest w **CET** (UTC+1, bez czasu letniego) – import przelicza go na UTC. |
 
 IMGW-PIB - dane terminowe SYNOP (Instytut Meteorologii i Gospodarki Wodnej – Państwowy Instytut Badawczy - dane terminowe surface synoptic observations)
 
@@ -96,11 +110,21 @@ GIOŚ - jakość powietrza - (Główny Inspektorat Ochrony Środowiska)
 Dane stacyjne bierzemy **tylko z lotniska w Balicach**. Pozostałe stacje synoptyczne są dość rozrzucone po mapie, a różnice w ukształtowaniu terenu (lotnisko leży w obniżeniu, w pobliżu dolin Wisły i Rudawy) sprawiają, że przenoszenie ich wartości na Balice ma niewielki sens.
 
 > **Doprecyzowanie:** wyjątkiem są dane o jakości powietrza.
-> - **GIOŚ** nie ma stacji na lotnisku. Bierzemy **tylko PM10 ze stacji Kraków, Al. Krasińskiego**, około 13 km od Balic.
->   - **Dlaczego ta stacja:** ma najdłuższą ciągłą serię (działa od początku lat 2000.). Bliższa stacja w Zabierzowie (`MpZabieWapie`) powstała później i nie pokrywa etapu 1 (2001–2025).
->   - **Ograniczenie:** to **stacja komunikacyjna** przy ruchliwej ulicy, a nie stacja tła. Bezwzględne stężenia są wyższe niż przy lotnisku, a cykl dobowy częściowo wynika z ruchu ulicznego. Zakładamy, że epizody smogowe przy inwersji mają w Krakowie charakter regionalny, więc **zmienność w czasie** jest podobna jak przy Balicach.
->   - **Do sprawdzenia:** korelacja PM10 z Krasińskiego i z Zabierzowa w latach, w których działają obie stacje. Wysoka korelacja uzasadnia ten wybór.
->   - **Kody stacji:** w starszych plikach Krasińskiego występuje jako `MpKrakowWIOSAKra6117`, w nowszych pod nowym kodem. Powiązanie kodów jest w pliku metadanych GIOŚ (kolumna ze starym kodem). Przy imporcie oba kody łączymy w jedną serię.
+> - **GIOŚ** nie ma stacji na lotnisku. Bierzemy **PM10 jako średnią z dwóch stacji w Krakowie: Al. Krasińskiego (centrum) i ul. Bulwarowa (Nowa Huta)** – z tych, które w danej godzinie mają pomiar.
+>   - **Dlaczego te stacje:** tylko one mierzą PM10 co godzinę przez cały okres 2003–2025. Pokrycie sprawdzone w plikach GIOŚ:
+>
+>     | Stacja | Kod (stary → od 2015 r.) | Dane godzinowe |
+>     |---|---|---|
+>     | Al. Krasińskiego | `MpKrakowWIOSAKra6117` → `MpKrakAlKras` | 2003–2025, **brak całego 2022 r.** |
+>     | ul. Bulwarowa | `MpKrakowWIOSBulw6118` → `MpKrakBulwar` | 2003–2025 |
+>     | ul. Bujaka | `MpKrakowWIOSBuja6119` → `MpKrakBujaka` | od 2010 r. |
+>     | Złoty Róg (najbliżej Balic) | `MpKrakZloRog` | od 2016 r. |
+>
+>     Średnia z dwóch stacji wypełnia rok 2022 (wtedy PM10 = sama Bulwarowa) i jest mniej wrażliwa na lokalne źródła przy jednej stacji. Złoty Róg leży najbliżej, ale ponad połowa lat treningowych nie miałaby wtedy PM10.
+>   - **Ograniczenie:** Al. Krasińskiego to **stacja komunikacyjna** przy ruchliwej ulicy, a Bulwarowa leży w dzielnicy przemysłowej, ok. 20 km od Balic. Bezwzględne stężenia są więc wyższe niż przy lotnisku. Zakładamy, że epizody smogowe przy inwersji mają w Krakowie charakter regionalny, więc **zmienność w czasie** jest podobna jak przy Balicach.
+>   - **Do sprawdzenia:** korelacja tej średniej z PM10 ze Złotego Rogu lub z Zabierzowa (`MpZabieWapie`) w latach, w których działają obie serie. Wysoka korelacja uzasadnia ten wybór.
+>   - **Kody stacji:** w 2015 r. GIOŚ zmienił kody stacji (tabela wyżej). Skrypt importu łączy stary i nowy kod w jedną serię.
+>   - **Czas:** GIOŚ podaje czas CET (UTC+1) i godzinę **końca** uśredniania („01:00” = średnia z 00:00–01:00 CET). Po przeliczeniu na UTC wartość `PM10` w wierszu o godzinie GG to średnia z godziny GG−1 … GG UTC, czyli tuż przed obserwacją IMGW – model nie dostaje informacji z przyszłości.
 >
 > Sąsiednich stacji nie trzeba by interpolować: w modelu mogłyby być osobnymi cechami (np. widzialność w Katowicach-Pyrzowicach). To możliwe rozszerzenie na później.
 
@@ -119,7 +143,7 @@ Wszystkie dane wczytujemy do bazy SQL (SQLite) i porządkujemy według daty i go
 > - **Miesiąc zapisujemy liczbą**, nie nazwą (`11`, nie `listopad`).
 > - **Zachmurzenie** w SYNOP jest w oktantach (0–8), nie w procentach.
 > - **Wysokość Słońca** nie pochodzi z żadnego źródła, wyliczamy ją z daty, godziny i współrzędnych lotniska (np. biblioteką `pvlib` lub `astral`).
-> - Wygodny układ bazy: **osobna tabela dla każdego źródła** (`synop`, `metar`, `gios`) z kluczem czasowym, a na nich **widok** (`VIEW`) łączący wszystko w jedną szeroką tabelę cech. Dzięki temu łatwo dodać nowe źródło bez przebudowy całości.
+> - Układ bazy: **osobna tabela dla każdego źródła** z kluczem czasowym (`ROK`, `MC`, `DZ`, `GG` w UTC), a na nich **widok** (`VIEW`) łączący wszystko w jedną szeroką tabelę cech. Obecnie są tabele `IMGW` i `GIOS_PM10` oraz widok `IMGW_cechy` (rozdział *Jak zacząć*); w etapie 2 dojdzie tabela z METAR. Dzięki temu łatwo dodać nowe źródło bez przebudowy całości.
 > - SQLite obsługuje funkcje okna (`LAG`, `AVG(...) OVER`), więc trendy i opóźnienia można liczyć bezpośrednio w SQL.
 
 ---
@@ -179,7 +203,9 @@ Na początek skupiamy się na **najważniejszych parametrach z IMGW**. Pierwsze 
 >
 > Brak wartości (`/` w pliku) występuje dokładnie wtedy, gdy niebo jest niewidoczne (`NOG` = 9), najczęściej z powodu mgły. To sygnał związany z mgłą, a nie zwykły brak danych.
 
-Dopiero w przyszłości można myśleć o rozbudowie modeli o kolejne parametry: pozostałe pola z tabeli 5.1 (np. tendencja ciśnienia, rodzaj opadu, temperatura minimalna przy gruncie, stan gruntu, pokrywa śnieżna), PM10 z GIOŚ (5.2) i dane METAR (etap 2).
+Dopiero w przyszłości można myśleć o rozbudowie modeli o kolejne parametry: pozostałe pola z tabeli 5.1 (np. tendencja ciśnienia, rodzaj opadu, temperatura minimalna przy gruncie, stan gruntu, pokrywa śnieżna) i dane METAR (etap 2).
+
+**PM10 z GIOŚ (5.2) jest już w bazie** – `data_import()` zwraca je jako kolumnę 20 (`PM10`). Zgodnie z planem z rozdziału 1 dokładamy ją jako osobny eksperyment: porównujemy modele bez PM10 i z PM10.
 
 ### 5.1 Stacja Kraków-Balice (IMGW SYNOP 12566 + METAR EPKK)
 
@@ -211,7 +237,7 @@ https://danepubliczne.imgw.pl/data/dane_pomiarowo_obserwacyjne/dane_meteorologic
 
 | Nr | Parametr | Prio | Znaczenie dla mgły |
 |---|---|---|---|
-| 20 | PM10 (Kraków, Al. Krasińskiego) | ★ | Aerozol dostarcza jąder kondensacji: wpływa na gęstość mgły i pozwala analizować mgłę vs smog. Jest też wskaźnikiem stagnacji powietrza pod inwersją. Tylko do osobnego eksperymentu. Dane `24g` nie są interpolowane do godzin – co najwyżej jako cecha „średnie PM10 z poprzedniej doby” (nie z bieżącej, bo zawiera ona godziny z przyszłości). |
+| 20 | PM10 (`PM10`: średnia z Kraków, Al. Krasińskiego i Kraków, ul. Bulwarowa) | ★ | Aerozol dostarcza jąder kondensacji: wpływa na gęstość mgły i pozwala analizować mgłę vs smog. Jest też wskaźnikiem stagnacji powietrza pod inwersją. W sezonie IX–III średnie PM10 przy mgle wynosi ok. 111 µg/m³, a bez mgły ok. 64 µg/m³. Tylko do osobnego eksperymentu. W latach 2001–2002 GIOŚ ma tylko dane dobowe (`24g`) – nie interpolujemy ich do godzin, więc `PM10` jest tam puste (NaN). Puste są też ok. 1,5% godzin 2003–2025, gdy obie stacje nie mierzyły. Braków nie uzupełniamy – boosting radzi sobie z NaN. |
 
 > **Dlaczego tylko PM10:** dla uproszczenia zbioru danych bierzemy jeden wskaźnik z najdłuższą serią. PM2.5 (fizycznie lepsza miara jąder kondensacji) i SO₂ (prekursor siarczanów, ważny dla długoterminowego trendu mgieł) to możliwe rozszerzenia na później. Pozostałe zanieczyszczenia (CO, benzen, NO₂, O₃, metale) pomijamy, bo wnoszą głównie tę samą informację o stagnacji powietrza co PM10 i dane meteorologiczne.
 >
@@ -347,7 +373,7 @@ Model prognozuje mgłę w okresie **od początku września do końca marca**. W 
 4. **Baseline'y.** Zawsze porównujemy z persystencją i klimatologią (częstość mgły dla danej godziny i miesiąca). Wynik bez tego porównania nic nie znaczy.
 5. **Niestacjonarność danych 1980–2024.** Częstość mgły w Europie wyraźnie spadła od lat 80., m.in. przez spadek zanieczyszczenia aerozolem. Do tego dochodzi zmiana z widzialności określanej przez obserwatora na pomiar automatyczny, co widać w osobnych polach `WIDO` i `WIDA`.
    W etapie 2 dochodzi zmiana źródła: przed 2001 r. dane stacyjne pochodzą z METAR, a od 2001 r. z IMGW. Trzeba sprawdzić, czy na granicy źródeł nie ma sztucznego skoku, np. w częstości mgły. Najprościej porównać METAR i IMGW w latach, w których dostępne są oba źródła.
-   Niestacjonarne jest też PM10 z Al. Krasińskiego: poziom zanieczyszczeń w Krakowie spadał z przyczyn niezwiązanych z pogodą, m.in. przez zakaz palenia węglem (od 2019 r.) i zmiany w ruchu ulicznym.
+   Niestacjonarne jest też PM10 z Krakowa: poziom zanieczyszczeń w Krakowie spadał z przyczyn niezwiązanych z pogodą, m.in. przez zakaz palenia węglem (od 2019 r.) i zmiany w ruchu ulicznym.
 6. **Podział danych.** Podział czasowy jest poprawny (żadnego losowego mieszania!), ale potrzebny jest też zbiór walidacyjny do strojenia, a testu nie dotykamy aż do końca. Proponowany podział:
 
    | Zbiór | Etap 1 (IMGW) | Etap 2 (METAR + IMGW) |

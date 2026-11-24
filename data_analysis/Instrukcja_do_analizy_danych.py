@@ -10,7 +10,7 @@
 # =====================================================================================
 # Potrzebne są:
 #   - conda (np. Miniforge: https://github.com/conda-forge/miniforge),
-#   - biblioteki: pandas, numpy, matplotlib – są wypisane w pliku environment.yml
+#   - biblioteki: pandas, numpy, matplotlib, openpyxl – są wypisane w pliku environment.yml
 #     w głównym folderze projektu. sqlite3 i pathlib są wbudowane w Pythona.
 #
 # Krok 1. Utworzenie środowiska (w terminalu, w głównym folderze projektu):
@@ -27,7 +27,8 @@
 #
 # UWAGA – NIE ZMIENIAMY baza.db:
 #   - z bazy tylko CZYTAMY, przez funkcję data_import() (otwiera bazę tylko do odczytu),
-#   - NIE uruchamiamy data_scripts/import_IMGW_to_sql.py i nie wysyłamy baza.db w swoich commitach,
+#   - NIE uruchamiamy data_scripts/import_IMGW_to_sql.py ani import_GIOS_to_sql.py
+#     i nie wysyłamy baza.db w swoich commitach,
 #   - jeśli "git status" pokazuje baza.db jako zmienioną:  git restore data_scripts/baza.db
 #   - bazę aktualizuje tylko opiekun projektu; potrzebną zmianę w bazie zgłaszamy jemu.
 # Szczegóły i powód: README.md, sekcja "Jak zacząć".
@@ -56,13 +57,14 @@ df = data_import()
 # =====================================================================================
 #  2. CO JEST W TABELI df
 # =====================================================================================
-# Tabela ma 19 kolumn, w każdej jest inna zmienna. Poniżej podsumowanie (przygotowane przez Claude),
+# Tabela ma 20 kolumn, w każdej jest inna zmienna. Poniżej podsumowanie (przygotowane przez Claude),
 # co znajduje się w poszczególnych kolumnach i jak to rozumieć:
 #
-# Funkcja data_import() zwraca tabelę df z 19 kolumnami, lata 2001–2025, co 1 h:
+# Funkcja data_import() zwraca tabelę df z 20 kolumnami, lata 2001–2025, co 1 h:
 #   - kolumny 1–16 pochodzą z plików CSV IMGW (tabela IMGW w bazie, schema.sql),
 #   - kolumny 17–18 wylicza baza (widok IMGW_cechy w schema.sql),
-#   - kolumnę 19 dodaje funkcja data_import() podczas czyszczenia danych.
+#   - kolumnę 19 dodaje funkcja data_import() podczas czyszczenia danych,
+#   - kolumna 20 (PM10) pochodzi z GIOŚ (tabela GIOS_PM10, dołączana w widoku IMGW_cechy).
 #
 # Nr kolumny = numer kolumny w plikach s_t_566_*.csv liczony OD 0, tak jak indeks w pandas
 #              (df.iloc[:, nr]). W Excelu kolumna ma numer o 1 większy (A = 1).
@@ -95,6 +97,12 @@ df = data_import()
 #  17. | Deficyt punktu rosy                   | DEFICYT            | widok IMGW_cechy (schema.sql)
 #  18. | Zmiana temperatury za 3 h             | DT_3H              | widok IMGW_cechy (schema.sql)
 #  19. | Niebo niewidoczne (flaga 0/1)         | NIEBO_NIEWIDOCZNE  | funkcja data_import()
+#
+#  KOLUMNY Z GIOŚ (inne źródło niż IMGW, osobna tabela w bazie)
+#  Lp. | Parametr                              | Skrót | Skąd się bierze
+#  ----+---------------------------------------+-------+------------------------------------------------
+#  20. | Stężenie pyłu PM10                    | PM10  | tabela GIOS_PM10 (import_GIOS_to_sql.py),
+#      |                                       |       | dołączana w widoku IMGW_cechy (schema.sql)
 #
 #  Z pierwotnej listy usunięto TG05 (temperatura gruntu), USLN (usłonecznienie) i ROSW (rosa) –
 #  w latach 2001–2025 są prawie puste (TG05: tylko 2011–2015 i część 2025, USLN: prawie tylko 2025,
@@ -216,6 +224,22 @@ df = data_import()
 #           0 = niebo widoczne.
 #       Przechowuje informację, która ginie po zamianie NOG 9 -> 8 i HPOD brak -> 0.
 #       To NIE jest etykieta mgły: obejmuje tylko ok. 28% godzin z mgłą (przy płytkiej mgle niebo często widać).
+#
+#  20.  PM10 – STĘŻENIE PYŁU ZAWIESZONEGO PM10 [µg/m³]
+#       Masa cząstek o średnicy do 10 µm w 1 m³ powietrza. Źródło: GIOŚ, nie IMGW.
+#       Wartość = średnia z dwóch krakowskich stacji: Al. Krasińskiego (centrum, przy ruchliwej ulicy)
+#       i ul. Bulwarowej (Nowa Huta) – z tych, które w danej godzinie mają pomiar.
+#       Tylko te dwie stacje mierzą co godzinę przez cały okres 2003–2025 (Krasińskiego nie ma w 2022 r.,
+#       wtedy PM10 = sama Bulwarowa). W bazie, w tabeli GIOS_PM10, są też obie stacje osobno
+#       (PM10_KRAS, PM10_BULW) – do df trafia tylko średnia.
+#       Czas: GIOŚ podaje czas CET (UTC+1) i godzinę KOŃCA uśredniania; w bazie jest to przeliczone na UTC,
+#       więc PM10 w wierszu o godzinie GG = średnia z godziny GG−1 … GG UTC (tuż przed obserwacją IMGW).
+#       Braki (NaN): cały 2001 i 2002 r. (GIOŚ ma wtedy tylko średnie dobowe) oraz ok. 1,5% godzin
+#       2003–2025 (awarie obu stacji naraz). Nie uzupełniamy ich – drzewa (boosting) radzą sobie z NaN.
+#       Zakres w danych: 1 … 847,5. Norma dobowa: 50 µg/m³.
+#       Dlaczego ważne dla mgły: cząstki pyłu są jądrami kondensacji, na których skrapla się para wodna,
+#       a wysokie PM10 zimą oznacza słaby wiatr i inwersję – te same warunki sprzyjają mgle.
+#       W sezonie IX–III średnie PM10 przy mgle to ok. 111 µg/m³, bez mgły ok. 64 µg/m³.
 
 
 # =====================================================================================
@@ -226,6 +250,10 @@ df = data_import()
 #  - POGB to KOD, a nie liczba – średnia z POGB nie ma sensu.
 #  - CLCM: wartość 9 = niebo niewidoczne (nie jest zamieniana na 8, w odróżnieniu od NOG).
 #  - DT_3H ma 3 braki (NaN) na samym początku 2001 r. – to normalne.
+#  - PM10 ma braki (NaN) w całym 2001 i 2002 r. (GIOŚ ma wtedy tylko średnie dobowe) i w ok. 1,5% godzin
+#    2003–2025. Przy liczeniu np. średniej pandas sam pomija NaN; przy porównaniach lat pamiętaj o 2001–2002.
+#  - PM10 pochodzi z Krakowa (Al. Krasińskiego + ul. Bulwarowa), a nie z lotniska – to wskaźnik
+#    zanieczyszczenia całego miasta, nie dokładna wartość nad Balicami.
 #  - Mgła (to, co przewidujemy) = WID <= 3, czyli widzialność < 1000 m.
 #  - Prognozy robimy tylko dla sezonu wrzesień–marzec (patrz punkt 6).
 
