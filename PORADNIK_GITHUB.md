@@ -349,8 +349,8 @@ To skrót najważniejszych pułapek. Pełna wersja jest w README, w rozdziale 10
 - **Mgła = `WID` ≤ 3**, czyli widzialność < 1000 m. To etykieta naszych modeli.
 - **Kody to nie liczby.** `POGB`, `WID` i `HPOD` to kody, a nie wartości do uśredniania. Średnia z `POGB` nie ma sensu.
 - **`NaN` to brak danych**, a nie zero. Zanim coś uzupełnisz, sprawdź w opisie kolumny (`data_import_from_sql.py`), **dlaczego** jest brak.
-- **Nie mieszaj danych losowo** przy podziale na zbiory. Dzielimy po latach: trening 2001–2018, walidacja 2019–2020, test 2021–2025.
-- **Zbioru testowego (2021–2025) nie oglądamy** przy budowie i strojeniu modeli. Używamy go dopiero na samym końcu. Inaczej wyniki wyjdą zawyżone.
+- **Nie mieszaj danych losowo** przy podziale na zbiory. Dzielimy po latach: trening 2001–2018, walidacja 2019–2023, test 2024–2025.
+- **Zbioru testowego (2024–2025) nie oglądamy** przy budowie i strojeniu modeli. Używamy go dopiero na samym końcu. Inaczej wyniki wyjdą zawyżone.
 
 ---
 

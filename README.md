@@ -374,13 +374,13 @@ Model prognozuje mgłę w okresie **od początku września do końca marca**. W 
 5. **Niestacjonarność danych 1980–2024.** Częstość mgły w Europie wyraźnie spadła od lat 80., m.in. przez spadek zanieczyszczenia aerozolem. Do tego dochodzi zmiana z widzialności określanej przez obserwatora na pomiar automatyczny, co widać w osobnych polach `WIDO` i `WIDA`.
    W etapie 2 dochodzi zmiana źródła: przed 2001 r. dane stacyjne pochodzą z METAR, a od 2001 r. z IMGW. Trzeba sprawdzić, czy na granicy źródeł nie ma sztucznego skoku, np. w częstości mgły. Najprościej porównać METAR i IMGW w latach, w których dostępne są oba źródła.
    Niestacjonarne jest też PM10 z Krakowa: poziom zanieczyszczeń w Krakowie spadał z przyczyn niezwiązanych z pogodą, m.in. przez zakaz palenia węglem (od 2019 r.) i zmiany w ruchu ulicznym.
-6. **Podział danych.** Podział czasowy jest poprawny (żadnego losowego mieszania!), ale potrzebny jest też zbiór walidacyjny do strojenia, a testu nie dotykamy aż do końca. Proponowany podział:
+6. **Podział danych.** Podział czasowy jest poprawny (żadnego losowego mieszania!), ale potrzebny jest też zbiór walidacyjny do strojenia, a testu nie dotykamy aż do końca. Przyjęty podział:
 
-   | Zbiór | Etap 1 (IMGW) | Etap 2 (METAR + IMGW) |
-   |---|---|---|
-   | treningowy | 2001–2018 | od najstarszego dostępnego roku (np. 1980) do 2018 |
-   | walidacyjny | 2019–2020 | 2019–2020 |
-   | testowy | 2021–2025 | 2021–2025 |
+   | Zbiór | Etap 1 (IMGW) | Etap 2 (METAR + IMGW) | Godziny z mgłą w sezonie IX–III (etap 1) |
+   |---|---|---|---|
+   | treningowy | 2001–2018 | od najstarszego dostępnego roku (np. 1980) do 2018 | 4373 |
+   | walidacyjny | 2019–2023 | 2019–2023 | 943 |
+   | testowy | 2024–2025 | 2024–2025 | 554 |
 
    W etapie 2 wydłużamy **tylko zbiór treningowy**, a walidacyjny i testowy zostają te same. Dzięki temu wyniki obu etapów są bezpośrednio porównywalne: różnica wynika z dodatkowych danych, a nie z innego okresu testowego.
 7. **Sezon chłodny.** Ograniczamy się do okresu wrzesień–marzec, bo wtedy występuje większość zdarzeń (patrz rozdział 8).

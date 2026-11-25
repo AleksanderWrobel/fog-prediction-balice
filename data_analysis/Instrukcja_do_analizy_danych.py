@@ -318,7 +318,7 @@ print(x2)
 # =====================================================================================
 # Mgła: widzialność < 1000 m, czyli kod WID <= 3. Wynik to kolumna True/False dla każdej godziny.
 mgla = df["WID"] <= 3
-print("Liczba godzin z mgłą (2001–2025):", mgla.sum())
+print("Liczba godzin z mgłą (2001-2025):", mgla.sum())
 
 # Częstość mgły w każdym miesiącu (średnia z True/False = ułamek godzin z mgłą; * 100 = procent):
 print((mgla.groupby(df["MC"]).mean() * 100).round(2))
@@ -326,4 +326,4 @@ print((mgla.groupby(df["MC"]).mean() * 100).round(2))
 # Tylko sezon, dla którego robimy prognozy: wrzesień–marzec.
 # isin([...]) sprawdza, czy wartość jest na liście.
 sezon = df.loc[df["MC"].isin([9, 10, 11, 12, 1, 2, 3])].reset_index(drop=True)
-print("Godzin w sezonie IX–III:", len(sezon), " w tym z mgłą:", (sezon["WID"] <= 3).sum())
+print("Godzin w sezonie IX-III:", len(sezon), " w tym z mgłą:", (sezon["WID"] <= 3).sum())
