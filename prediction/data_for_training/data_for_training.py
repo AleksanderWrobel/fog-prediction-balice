@@ -10,13 +10,15 @@ from data_scripts.data_import_from_sql import data_import
 df = data_import()
 
 
+cechy = ["MC", "GG", "WID", "POGB", "TEMP", "TPTR", "WLGW", "FWR", "KRWR", "NOG", "CLCM", "HPOD", "PPPM", "WO6G", "DEFICYT", "DT_3H", "NIEBO_NIEWIDOCZNE", "PM10"]
 
+# Training data, to będą zestawy wyglądające tak: [dane (na 0h (aktualną godzinę), 1 h, 2h, 3h, 4h, 6h, 12h, 24h, 48h)]
 
-# Training data, to będą zestawy wyglądające tak: [etykieta (czy mgła tak / nie), dane (na 1 h, 2h, 3h, 4h, 6h, 12h, 24h, 48h)]
+# Training data to okres od września 2001 do marca 2019
 
 def training_data(prediction_hour):
 
-    # prediction_hour, jest to ilość godzin, na ile model potrzebuje danych w przód:
+    # prediction_hour, jest to ilość godzin, na ile model potrzebuje danych w przód (w celu wyciągnięcia etykiety):
     # prediction_hour = 1, etykieta to czy mgła zajdzie za 1 h
     # prediction_hour = 2, etykieta to czy mgła zajdzie za 2 h
     # prediction_hour = 3, etykieta to czy mgła zajdzie za 3 h
@@ -24,66 +26,163 @@ def training_data(prediction_hour):
     # prediction_hour = 5, etykieta to czy mgła zajdzie za 5 h
     # prediction_hour = 6, etykieta to tablica, w której mamy przewidywanie mgły w przód na wszystkie pięc godzin [1h, 2h, 3h, 4h, 5h]
 
-    df_training = df.loc[((df["ROK"] < 2019) & (df["MC"] > 8)) | ((df["ROK"] < 2019) & (df["MC"] < 4))].reset_index(drop=True)
 
-    number_rows, number_columns = df_training.shape
+    years = [i for i in range(1,19,1)]
+
+    df_training = [df.loc[((df["ROK"] == (2000 + year)) & (df["MC"] > 8)) | ((df["ROK"] == (2001 + year)) & (df["MC"] < 4)), cechy].reset_index(drop=True) for year in years]
+
+    hours = [0, 24, 36, 42, 44, 45, 46, 47, 48]
+
+    Y_data = []
+    X_data = []
+
+    for yearly_data in df_training:
+        number_rows = len(yearly_data)
+
+        for i in range(0, number_rows - 53, 1):     # bierzemy tutaj 53, żeby każdy model dostawał taki sam zakres próbek i za razem, żeby nie wychodzić poza tablicę
+            temp_data_box = []
+            for hour in hours:
+                temp_data_box.append(yearly_data.iloc[i+hour].to_numpy())
+            
+
+            if prediction_hour < 6:
+                WID = yearly_data.iloc[i + 48 + prediction_hour].loc["WID"]
+                if WID <= 3:
+                    Y_data.append(1)
+                else:
+                    Y_data.append(0)
+            else:
+                WID = [yearly_data.iloc[i + 48 + z].loc["WID"] for z in range(1,6,1)]
+                result = [1 if wid<=3 else 0 for wid in WID]
+                Y_data.append(result)
+
+            # X -> o kształcie (liczba próbek, 162), czyli wiersz = dane rzędami, kolumna = nazwa cech,
+            # Y -> o kształcie (liczba próbek), czyli same wyniki, co jest przewidziane w przyszłości.
+            # W takiej formie dane przyjmują LightGBM, XGBoost i scikit-learn: model.fit(X, y). 
+
+            X_data.append(np.concatenate(temp_data_box))
+
+    nazwy_cech = []
+
+    for hour in hours:
+        for cecha in cechy:
+            nazwy_cech.append(str(48 - hour) + "-" + cecha)
+
+    X_data = np.array(X_data)
+    Y_data = np.array(Y_data)
+
+    np.random.default_rng(42).shuffle(X_data)
+    np.random.default_rng(42).shuffle(Y_data)
+
+    return nazwy_cech, X_data, Y_data
 
 
-    data = []
-
-
-    for i in range(0, number_rows - (49 + prediction_hour), 1):
-        temp_data_box = [[df_training.iloc[i].to_numpy()], []]
-        temp_data_box[0].append(df_training.iloc[i].to_numpy())
-        temp_data_box[0].append(df_training.iloc[i+24].to_numpy())
-        temp_data_box[0].append(df_training.iloc[i+36].to_numpy())
-        temp_data_box[0].append(df_training.iloc[i+42].to_numpy())
-        temp_data_box[0].append(df_training.iloc[i+44].to_numpy())
-        temp_data_box[0].append(df_training.iloc[i+45].to_numpy())
-        temp_data_box[0].append(df_training.iloc[i+46].to_numpy())
-        temp_data_box[0].append(df_training.iloc[i+47].to_numpy())
-        WID = df_training.iloc[i+48+prediction_hour].loc["WID"]
-        if WID <= 3:
-            temp_data_box[1] = 1
-        else:
-            temp_data_box[1] = 0
-
-        # trzeba tak podizelić dane, żeby nie wychodziło, że zaraz po marcu pojawiają się dane z września
-
-        # dane trzeba przetasować
-
-        # zamienić na końcu tablicę na tablicę numpy, żeby szybiej działało
-        
-
-        if len(data) == 0:
-            data = temp_data_box
-        else:
-            data.append(temp_data_box)
-
-
-    return data
+# Validation data to okres od września 2019 do marca 2023
 
 def validation_data(prediction_hour):
-    df_validating = df.loc[((df["ROK"] >= 2019) & (df["ROK"] < 2024) & (df["MC"] > 8)) | ((df["ROK"] >= 2019) & (df["ROK"] < 2024) & (df["MC"] < 4))].reset_index(drop=True)
 
-    number_rows, number_columns = df_validating.shape
+    years = [i for i in range(19,23,1)]
 
+    df_validating = [df.loc[((df["ROK"] == (2000 + year)) & (df["MC"] > 8)) | ((df["ROK"] == (2001 + year)) & (df["MC"] < 4)), cechy].reset_index(drop=True) for year in years]
 
-    data = 0
+    hours = [0, 24, 36, 42, 44, 45, 46, 47, 48]
 
-    return data
+    Y_data = []
+    X_data = []
+
+    for yearly_data in df_validating:
+        number_rows = len(yearly_data)
+
+        for i in range(0, number_rows - 53, 1):     # bierzemy tutaj 53, żeby każdy model dostawał taki sam zakres próbek i za razem, żeby nie wychodzić poza tablicę
+            temp_data_box = []
+            for hour in hours:
+                temp_data_box.append(yearly_data.iloc[i+hour].to_numpy())
+            
+
+            if prediction_hour < 6:
+                WID = yearly_data.iloc[i + 48 + prediction_hour].loc["WID"]
+                if WID <= 3:
+                    Y_data.append(1)
+                else:
+                    Y_data.append(0)
+            else:
+                WID = [yearly_data.iloc[i + 48 + z].loc["WID"] for z in range(1,6,1)]
+                result = [1 if wid<=3 else 0 for wid in WID]
+                Y_data.append(result)
+
+            # X -> o kształcie (liczba próbek, 162), czyli wiersz = dane rzędami, kolumna = nazwa cech,
+            # Y -> o kształcie (liczba próbek), czyli same wyniki, co jest przewidziane w przyszłości.
+            # W takiej formie dane przyjmują LightGBM, XGBoost i scikit-learn: model.fit(X, y). 
+
+            X_data.append(np.concatenate(temp_data_box))
+
+    nazwy_cech = []
+
+    for hour in hours:
+        for cecha in cechy:
+            nazwy_cech.append(str(48 - hour) + "-" + cecha)
+
+    X_data = np.array(X_data)
+    Y_data = np.array(Y_data)
+
+    return nazwy_cech, X_data, Y_data
     
 
 
-def testing_data(prediction_hour):
-    df_testing = df.loc[((df["ROK"] >= 2024) & (df["ROK"] < 2026) & (df["MC"] > 8)) | ((df["ROK"] >= 2024) & (df["ROK"] < 2026) & (df["MC"] < 4))].reset_index(drop=True)
+# Testing data to okres od września 2023 do marca 2025
 
-    number_rows, number_columns = df_testing.shape
+def test_data(prediction_hour):
+
+    years = [i for i in range(23,25,1)]
+
+    df_testing = [df.loc[((df["ROK"] == (2000 + year)) & (df["MC"] > 8)) | ((df["ROK"] == (2001 + year)) & (df["MC"] < 4)), cechy].reset_index(drop=True) for year in years]
+
+    hours = [0, 24, 36, 42, 44, 45, 46, 47, 48]
+
+    Y_data = []
+    X_data = []
+
+    for yearly_data in df_testing:
+        number_rows = len(yearly_data)
+
+        for i in range(0, number_rows - 53, 1):     # bierzemy tutaj 53, żeby każdy model dostawał taki sam zakres próbek i za razem, żeby nie wychodzić poza tablicę
+            temp_data_box = []
+            for hour in hours:
+                temp_data_box.append(yearly_data.iloc[i+hour].to_numpy())
+            
+
+            if prediction_hour < 6:
+                WID = yearly_data.iloc[i + 48 + prediction_hour].loc["WID"]
+                if WID <= 3:
+                    Y_data.append(1)
+                else:
+                    Y_data.append(0)
+            else:
+                WID = [yearly_data.iloc[i + 48 + z].loc["WID"] for z in range(1,6,1)]
+                result = [1 if wid<=3 else 0 for wid in WID]
+                Y_data.append(result)
+
+            # X -> o kształcie (liczba próbek, 162), czyli wiersz = dane rzędami, kolumna = nazwa cech,
+            # Y -> o kształcie (liczba próbek), czyli same wyniki, co jest przewidziane w przyszłości.
+            # W takiej formie dane przyjmują LightGBM, XGBoost i scikit-learn: model.fit(X, y). 
+
+            X_data.append(np.concatenate(temp_data_box))
+
+    nazwy_cech = []
+
+    for hour in hours:
+        for cecha in cechy:
+            nazwy_cech.append(str(48 - hour) + "-" + cecha)
+
+    X_data = np.array(X_data)
+    Y_data = np.array(Y_data)
+
+    return nazwy_cech, X_data, Y_data
 
 
-    data = [[]]
+if __name__ == "__main__":
 
-    return data
+    nazwy_cech, x_training_data, y_training_data = training_data(2)
 
 
-training_data(2)
+
